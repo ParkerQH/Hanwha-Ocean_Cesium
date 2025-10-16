@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>한화 오션 공장</title>
+    <style>
+      html, body, #cesiumContainer {
+        width: 100%; 
+        height: 100%; 
+        margin: 0; 
+        padding: 0; 
+        overflow: hidden;}
+
+      #controls { 
+        position: absolute; 
+        top: 10px; 
+        left: 10px; 
+        background: rgba(255,255,255,0.9); 
+        padding: 10px; 
+      border-radius: 5px; }
+      #controls select, #controls button { margin: 2px; }
+      #infoPanel {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 200px;
+        max-height: 45%;
+        overflow: auto;
+        background: rgba(255,255,255,0.95);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      }
+      #infoPanel h3 {
+        margin: 0 0 6px 0;
+        font-size: 13px;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      #infoBody { font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div id="cesiumContainer"></div>
+    
+    <div id="controls">
+      <select id="buildingSelect" multiple size="5" title="공장 선택">
+        <option value="" disabled>공장 선택</option>
+      </select>
+
+      <select id="baySelect" multiple size="5" disabled title="BAY 선택">
+        <option value="" disabled>BAY 선택</option>
+      </select>
+
+      <button id="searchBtn">검색</button>
+      <button id="resetBtn">초기화</button>
+
+      <div style="margin-top:6px; padding-top:6px; border-top:1px solid #ddd">
+        <input id="inpBldg" placeholder="공장ID (예: 123)" style="width:110px">
+        <input id="inpColId" placeholder="기둥ID (예: 123)" style="width:110px">
+        <input id="inpBay" placeholder="BAY (예: 1-BAY)"  style="width:110px">
+        <button id="btnReport" title="강조/신고">강조(신고)</button>
+        <button id="btnResolve" title="해결 처리">해결</button>
+      </div>
+    </div>
+
+    <div id="infoPanel">
+      <h3>선택 기둥 정보</h3>
+      <div id="infoBody">아직 선택된 기둥이 없습니다.</div>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+</body>
+</html>

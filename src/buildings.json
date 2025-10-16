@@ -1,0 +1,10 @@
+[
+  { "name": "조립1공장", "bldg_id": "150", "bays": ["1BAY","4BAY","5BAY","6BAY"] },
+  { "name": "조립2공장", "bldg_id": "141", "bays": ["1BAY","2BAY","3BAY"] },
+  { "name": "조립3공장", "bldg_id": "128", "bays": ["1BAY","2BAY","3BAY"] },
+  { "name": "조립5공장", "bldg_id": "102", "bays": ["1BAY","2BAY","3BAY"] },
+  { "name": "해양제작1공장", "bldg_id": "086", "bays": ["1BAY","2BAY","3BAY","4BAY"] },
+  { "name": "해양제작2공장", "bldg_id": "073", "bays": [] },
+  { "name": "해양제작3공장", "bldg_id": "064", "bays": [] },
+  { "name": "절단공장", "bldg_id": "126", "bays": ["1BAY","2BAY","3BAY","4BAY","5BAY","6BAY","7BAY","TBAY","T-1BAY"] }
+]

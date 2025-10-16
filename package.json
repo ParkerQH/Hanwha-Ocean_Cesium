@@ -1,0 +1,19 @@
+{
+  "name": "map_test",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^7.1.9",
+    "vite-plugin-cesium": "^1.2.23"
+  },
+  "dependencies": {
+    "@turf/turf": "^7.2.0",
+    "cesium": "^1.134.1"
+  }
+}
