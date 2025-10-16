@@ -4,24 +4,16 @@ import * as turf from '@turf/turf';
 import buildingData from './buildings.json';
 
 import { loadPolygonColumns, 
+    highlightSingleColumnById, 
     highlightMappedColumnsAll, 
-    setColumnsVisibility,
+    setColumnsVisibility, 
     resolveProblem,
-    listOpenProblems, 
+    listOpenProblems,
     lookupColumnRaw,
     getOpenProblemBuildings,
 } from "./polygon.js";
 
-// app.js
-// import {
-//   loadPointColumns,           // 로더
-//   highlightMappedColumnsAll,  // 신고/강조 트리거
-//   setColumnsVisibility,       // 가시성 토글
-//   resolveProblem,             // 문제 해제
-//   reportProblem,              // 문제 등록(상태만)
-//   listOpenProblems,           // (옵션) 목록 확인
-// } from './point.js';
-
+import { initBleScanner } from './ble_scanner.js';
 
 // Cesium token
 function getCesiumToken() {
@@ -49,22 +41,7 @@ const viewer = new Cesium.Viewer("cesiumContainer", {
 });
 viewer.scene.globe.depthTestAgainstTerrain = false;
 viewer.scene.pickTranslucentDepth = true;
-viewer.clock.shouldAnimate = true;           // 박스 성장 애니메이션용
 viewer.scene.requestRenderMode = true; 
-
-// 폴리곤 데이터 WMS
-// const polygondata = new Cesium.WebMapServiceImageryProvider({
-//     url: "/geoserver/HanWha_map/wms",
-//     layers: "HanWha_map:polygon_data",
-//     parameters: {
-//         service: "WMS",
-//         version: "1.1.1",
-//         request: "GetMap",
-//         format: "image/png",
-//         transparent: true
-//     },
-// })
-// viewer.imageryLayers.addImageryProvider(polygondata);
 
 // 베이스맵 한화 오션
 const basemap = new Cesium.WebMapServiceImageryProvider({
@@ -93,15 +70,17 @@ viewer.camera.setView({
 const buildingSelect = document.getElementById("buildingSelect");
 const baySelect = document.getElementById("baySelect");
 const searchBtn = document.getElementById("searchBtn");
-const resetBtn  = document.getElementById("resetBtn");
+const resetBtn = document.getElementById("resetBtn");
 const infoBody = document.getElementById("infoBody");
 
-const inpBldg    = document.getElementById("inpBldg");
-const inpColId   = document.getElementById("inpColId");
-const inpBay     = document.getElementById("inpBay");
-const btnReport  = document.getElementById("btnReport");
+const inpBldg = document.getElementById("inpBldg");
+const inpColId = document.getElementById("inpColId");
+const inpBay = document.getElementById("inpBay");
+const btnReport = document.getElementById("btnReport");
 const btnResolve = document.getElementById("btnResolve");
-
+const inpSensorId = document.getElementById('inpSensorId');
+const btnSensorReport  = document.getElementById('btnSensorReport');
+const btnSensorResolve = document.getElementById('btnSensorResolve');
 
 // 기둥 드롭다운 초기화
 buildingData.forEach((b) => {
@@ -184,6 +163,15 @@ resetBtn.addEventListener("click", () => {
   });
   toRemove.forEach(e => viewer.entities.remove(e));
 
+  // 센서 모두 제거
+  if (window.__bleScanner?.removeAllSensors) {
+    window.__bleScanner.removeAllSensors();
+  }
+
+  // 토글 버튼 라벨 초기화
+  const btn = document.getElementById('btnToggleSensors');
+  if (btn) btn.textContent = '센서 보기';
+
   if (viewer.scene.requestRenderMode) viewer.scene.requestRender();
 });
 
@@ -237,11 +225,67 @@ btnResolve.addEventListener("click", () => {
   resolveProblem(viewer, { bldg_id: bldg, columnId: col, bay });
 });
 
+async function runSensorIdHighlightOnly() {
+  const v = (inpSensorId?.value || '').trim();
+  if (!v) return;
+  const bleId = Number(v);
+  if (Number.isNaN(bleId)) {
+    alert('BLE ID 형식이 맞지 않습니다.');
+    return;
+  }
+
+  const found = await window.__bleScanner?.lookupByBle(bleId);
+  if (!found) {
+    alert('센서와 기둥/공장 매핑을 찾지 못했습니다.');
+    return;
+  }
+
+  const { pillar_id, bldg_id } = found;
+
+  await highlightSingleColumnById(viewer, { bldg_id, columnId: pillar_id });
+
+  if (viewer.scene.requestRenderMode) viewer.scene.requestRender();
+}
+
+btnSensorReport?.addEventListener('click', runSensorIdHighlightOnly);
+
+async function runSensorIdResolveOnly() {
+  const v = (inpSensorId?.value || '').trim();
+  if (!v) return;
+
+  // 현재 코드가 숫자만 허용하고 있으니 기존 스타일 유지
+  const bleId = Number(v);
+  if (Number.isNaN(bleId)) {
+    alert('BLE ID 형식이 맞지 않습니다.');
+    return;
+  }
+
+  // 센서 -> (pillar_id, bldg_id) 매핑 조회
+  const found = await window.__bleScanner?.lookupByBle(bleId);
+  if (!found) {
+    alert('센서와 기둥/공장 매핑을 찾지 못했습니다.');
+    return;
+  }
+
+  const { pillar_id, bldg_id } = found;
+
+  resolveProblem(viewer, { bldg_id, columnId: pillar_id });
+
+  if (viewer.scene.requestRenderMode) viewer.scene.requestRender();
+}
+
+btnSensorResolve?.addEventListener('click', runSensorIdResolveOnly);
+
+initBleScanner(viewer);
+
 window.reloadColumns = (bldgIds = [], bays = []) =>
   loadPolygonColumns(viewer, { bldgIds, bays });
 
 window.toggleColumns = (on) =>
   setColumnsVisibility(viewer, !!on);
+
+window.highlightSingleColumnById = (bldg_id, columnId) =>
+  highlightSingleColumnById(viewer, { bldg_id, columnId });
 
 window.highlightMappedColumnsAll = (bldg_id, inputColumnId, inputBay) =>
   highlightMappedColumnsAll(viewer, bldg_id, inputColumnId, inputBay);

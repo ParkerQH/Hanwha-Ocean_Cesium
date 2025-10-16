@@ -60,26 +60,79 @@ function removeColumnsByBuilding(viewer, bldgId) {
   }
 }
 
+// 문제 기둥 해결(BAY가 없는 경우 공장ID+기둥ID 기준으로 해결)
 export function resolveProblem(viewer, { bldg_id, columnId, bay }) {
-  const key = problemKey(bldg_id, bay, columnId);
-  const rec = problemStore.get(key);
-  if (!rec) return false;
+  const exactKey = problemKey(bldg_id, bay, columnId);
+  const exact = problemStore.get(exactKey);
 
-  // 1) 상태 변경 + 이 이슈의 빨간 강조 제거
-  rec.status = 'resolved';
-  if (Array.isArray(rec.entities) && rec.entities.length) {
-    rec.entities.forEach(e => viewer.entities.remove(e));
-    rec.entities = [];
+  let targets = [];
+  if (exact && exact.status === 'open') {
+    targets = [exact];
+  } else {
+    const bid = String(bldg_id);
+    const cid = String(columnId);
+    for (const rec of problemStore.values()) {
+      const m = rec.meta || {};
+      const recBid = String(m.bldg_id ?? m.bldgId ?? m.building ?? '');
+      const recCid = String(m.columnId ?? m.column_id ?? m.id ?? m.pillar_id ?? '');
+      if (rec.status === 'open' && recBid === bid && recCid === cid) {
+        targets.push(rec);
+      }
+    }
+    if (targets.length === 0) return false;
   }
 
-  // 2) 이 공장에 남아있는 open 문제가 하나도 없으면, 공장 기둥 전체 제거
+  // 1) 상태 변경 + rec에 연결된 강조 제거
+  for (const rec of targets) {
+    rec.status = 'resolved';
+    if (Array.isArray(rec.entities) && rec.entities.length) {
+      for (const ent of rec.entities) {
+        try { viewer.entities.remove(ent); } catch (_) {}
+      }
+      rec.entities = [];
+    }
+  }
+
+  // 2) 강조 스윕: 레지스트리 누락/키 불일치 대비 (problemHighlight 직접 탐색 제거)
+  const bid = String(bldg_id);
+  const cid = (columnId != null) ? String(columnId) : null;
+  const by  = bay ? String(bay) : null;
+
+  const sweepRemove = [];
+  viewer.entities.values.forEach(e => {
+    if (e.layerTag === 'problemHighlight') {
+      const rd  = e.rawData || {};
+      const eb  = String(rd.bldg_id ?? rd.BLDG_ID ?? '');
+      const ec  = String(rd.column_id ?? rd.id ?? rd.pre_id ?? rd.next_id ?? '');
+      const eby = String(rd.bay ?? rd.pre_bay ?? rd.next_bay ?? rd.BAY ?? '');
+      if (eb === bid && (cid === null || ec === cid) && (!by || eby === by)) {
+        sweepRemove.push(e);
+      }
+    }
+  });
+  for (const e of sweepRemove) {
+    try { viewer.entities.remove(e); } catch (_) {}
+  }
+
+  // 3) 공장에 open 이슈 없으면: 회색 기둥 + 남은 빨간 강조까지 전체 정리
   if (!hasOpenProblemsInBuilding(bldg_id)) {
     removeColumnsByBuilding(viewer, bldg_id);
+    const leftovers = [];
+    viewer.entities.values.forEach(e => {
+      if (e.layerTag === 'problemHighlight') {
+        const eb = String(e.rawData?.bldg_id ?? e.rawData?.BLDG_ID ?? '');
+        if (eb === bid) leftovers.push(e);
+      }
+    });
+    leftovers.forEach(e => {
+      try { viewer.entities.remove(e); } catch (_) {}
+    });
   }
 
-  if (viewer.scene.requestRenderMode) viewer.scene.requestRender();
+  if (viewer?.scene?.requestRenderMode) viewer.scene.requestRender();
   return true;
 }
+
 
 
 export function listOpenProblems() {
@@ -129,52 +182,21 @@ function toPolygonFeatures(f) {
   return [];
 }
 
-// 위로 자라는 extruded 폴리곤(회색 기둥/강조 공용)
-function addAnimatedExtrudedPolygon(viewer, coords, targetHeight, opts = {}) {
+// 기둥 생성
+function addExtrudedPolygon(viewer, coords, height, opts = {}) {
   const {
-    material = Cesium.Color.GRAY.withAlpha(0.7),
+    material = Cesium.Color.GRAY,
     outline = true,
     outlineColor = Cesium.Color.BLACK,
-    duration = 0.8,
-    delay = 0,
-    easing = (t) => 1 - Math.pow(1 - t, 3),
     shadows = Cesium.ShadowMode.DISABLED,
     layerTag = 'columns',
     rawData = null, // 클릭시 보여줄 속성
   } = opts;
 
-  const startTime = Cesium.JulianDate.addSeconds(
-    viewer.clock.currentTime, delay, new Cesium.JulianDate()
-  );
-
-  let finalized = false;
-  let entity;
-
-  const extrudedHeightProp = new Cesium.CallbackProperty((time) => {
-    if (finalized) return targetHeight;
-    const elapsed = Cesium.JulianDate.secondsDifference(time, startTime);
-    if (elapsed <= 0) return 0.01; // epsilon 시작 (z-fighting 완화)
-    const t = Math.min(elapsed / duration, 1.0);
-    const h = Math.max(0.01, targetHeight * easing(t));
-
-    if (t >= 1 && !finalized) {
-      finalized = true;
-      // postRender에서 정적으로 스왑 (깜빡임 최소화)
-      const once = () => {
-        if (entity && entity.polygon) entity.polygon.extrudedHeight = targetHeight;
-        viewer.scene.postRender.removeEventListener(once);
-        if (viewer.scene.requestRenderMode) viewer.scene.requestRender();
-      };
-      viewer.scene.postRender.addEventListener(once);
-      return targetHeight;
-    }
-    return h;
-  }, false);
-
-  entity = viewer.entities.add({
+  const entity = viewer.entities.add({
     polygon: {
       hierarchy: coords.map(([lon, lat]) => Cesium.Cartesian3.fromDegrees(lon, lat)),
-      extrudedHeight: extrudedHeightProp,
+      extrudedHeight: height,
       material,
       outline,
       outlineColor,
@@ -183,7 +205,8 @@ function addAnimatedExtrudedPolygon(viewer, coords, targetHeight, opts = {}) {
   });
   entity.layerTag = layerTag;
   entity.show = columnsVisible;
-  if (rawData) entity.rawData = rawData; // 태깅
+  if (rawData) entity.rawData = rawData;
+  if (viewer.scene.requestRenderMode) viewer.scene.requestRender();
   return entity;
 }
 
@@ -192,15 +215,13 @@ function addRedExtruded(viewer, feature, height = 11) {
   const g = feature.geometry;
   const rings = g.type === "Polygon" ? [g.coordinates[0]] : g.coordinates.map((c) => c[0]);
   const made = [];
-  rings.forEach((ring, idx) => {
-    const ent = addAnimatedExtrudedPolygon(viewer, ring, height, {
+  rings.forEach((ring) => {
+    const ent = addExtrudedPolygon(viewer, ring, height, {
       material: Cesium.Color.RED.withAlpha(0.3),
       outline: true,
       outlineColor: Cesium.Color.RED,
-      duration: 0.7,
-      delay: idx * 0.05,
       layerTag: 'problemHighlight',
-      rawData: feature.properties ?? null, // 강조도 태깅(메타)
+      rawData: feature.properties ?? null,
     });
     made.push(ent);
   });
@@ -225,10 +246,8 @@ function renderProblemHighlight(viewer, featureOrRing, { height = 11, rawData = 
 // 회색 기둥 로딩
 export async function loadPolygonColumns(viewer, { pairs = [], bldgIds = [], bays = [] } = {}) {
   let wfsUrl =
-    "/geoserver/HanWha_map/ows?" +
-    "service=WFS&version=1.0.0&request=GetFeature" +
-    "&typeName=HanWha_map:polygon_data" +
-    "&outputFormat=application/json&srsName=EPSG:4326";
+    "/geoserver/HanWha_map/ows?service=WFS&version=1.0.0&request=GetFeature" +
+    "&typeName=HanWha_map:polygon_data&outputFormat=application/json&srsName=EPSG:4326";
 
   const filters = [];
 
@@ -275,18 +294,16 @@ export async function loadPolygonColumns(viewer, { pairs = [], bldgIds = [], bay
     };
 
 
-    const addPoly = (coords, idx = 0) => {
+    const addPoly = (coords) => {
       // 먼저 재사용 시도
       const reused = maybeReuse();
       if (reused) return reused;
 
       // 없으면 새로 생성
-      const ent = addAnimatedExtrudedPolygon(viewer, coords, 10, {
-        material: Cesium.Color.GRAY.withAlpha(0.7),
+      const ent = addExtrudedPolygon(viewer, coords, 10, {
+        material: Cesium.Color.GRAY,
         outline: true,
         outlineColor: Cesium.Color.BLACK,
-        duration: 0.8,
-        delay: idx * 0.015,
         layerTag: 'columns',
         rawData: props,
       });
@@ -321,15 +338,65 @@ export async function loadPolygonColumns(viewer, { pairs = [], bldgIds = [], bay
   setColumnsVisibility(viewer, columnsVisible);
 }
 
+// 단일 기둥 강조
+export async function highlightSingleColumnById(viewer, { bldg_id, columnId }) {
+  // 1) 현재 건물 기둥 로드
+  if (typeof loadPolygonColumns === 'function') {
+    await loadPolygonColumns(viewer, { bldgIds: [String(bldg_id)] });
+  }
+
+  // 2) 해당 기둥만 조회 — id 숫자만
+  const colId = Number(columnId);
+  if (!Number.isFinite(colId)) {
+    console.warn('[highlightSingleColumnById] columnId가 숫자가 아닙니다:', columnId);
+    return;
+  }
+
+  const cql =
+    `bldg_id='${String(bldg_id)}' AND id=${colId}`;
+  const wfsUrl =
+    `/geoserver/HanWha_map/ows?service=WFS&version=1.0.0&request=GetFeature` +
+    `&typeName=HanWha_map:polygon_data&outputFormat=application/json&srsName=EPSG:4326` +
+    `&CQL_FILTER=${encodeURIComponent(cql)}`;
+
+  const res = await fetch(wfsUrl);
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  if (!ct.includes('application/json')) {
+    const text = await res.text();
+    console.error('[highlightSingleColumnById] non-JSON:', { ct, text: text.slice(0, 400) });
+    return;
+  }
+  const data = await res.json();
+  const f = (data.features || [])[0];
+  if (!f) {
+    console.warn('문제 발생 기둥을 찾지 못했습니다.', { bldg_id, columnId });
+    return;
+  }
+
+  // 3) 상태 저장
+  const props = f.properties || {};
+  reportProblem(viewer, { bldg_id, columnId: colId });
+
+  // 4) 단일 기둥
+  const buffered = turf.buffer(f, 1, { units: 'meters' });
+  const meta = { bldg_id, column_id: colId };
+  renderProblemHighlight(viewer, buffered, { height: 11, rawData: meta });
+
+  if (viewer.scene.requestRenderMode) viewer.scene.requestRender();
+}
+
+
+
 // 문제 강조(신고) 트리거
 export async function highlightMappedColumnsAll(viewer, bldg_id, inputColumnId, inputBay) {
   // 1) 회색 기둥 (현재 건물만)
   await loadPolygonColumns(viewer, { bldgIds: [bldg_id] });
 
   // 2) 대상 폴리곤 조회
-  const wfsUrl = `/geoserver/HanWha_map/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=HanWha_map:polygon_data&outputFormat=application/json&srsName=EPSG:4326&CQL_FILTER=${encodeURIComponent(
-    `bldg_id='${bldg_id}'`
-  )}`;
+  const wfsUrl = 
+  `/geoserver/HanWha_map/ows?service=WFS&version=1.0.0&request=GetFeature` +
+  `&typeName=HanWha_map:polygon_data&outputFormat=application/json&srsName=EPSG:4326` + 
+  `&CQL_FILTER=${encodeURIComponent(`bldg_id='${bldg_id}'`)}`;
   const res = await fetch(wfsUrl);
   const data = await res.json();
 
