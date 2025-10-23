@@ -166,9 +166,7 @@ export function initControls({ viewer, cm, hm, sm, buildings, balloon }) {
             const v = (inpSensorId?.value || "").trim();
             if (!v) 
                 return;
-            const bleId = Number(v);
-            if (Number.isNaN(bleId)) 
-                return handleError(new Error("bad format"), { userMessage: "BLE ID 형식이 맞지 않습니다." });
+            const bleId = v;
 
             const found = await sm.lookupByBle(bleId);
             if (!found) 
@@ -198,10 +196,8 @@ export function initControls({ viewer, cm, hm, sm, buildings, balloon }) {
             const v = (inpSensorId?.value || "").trim();
             if (!v) 
                 return;
-            const bleId = Number(v);
-            if (Number.isNaN(bleId)) 
-                return handleError(new Error("bad format"), { userMessage: "BLE ID 형식이 맞지 않습니다." });
-
+            const bleId = v;
+            
             const found = await sm.lookupByBle(bleId);
             if (!found) 
                 return handleError(new Error("not found"), { userMessage: "센서와 기둥/공장 매핑을 찾지 못했습니다." });
