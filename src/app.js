@@ -15,6 +15,7 @@ import { SensorManager } from "./features/sensor.js";
 import { ProblemStore } from "./state/problemStore.js";
 import { initControls } from "./ui/controls.js";
 import { createBalloonLayer } from "./hooks/useBalloon.js";
+import { RailManager } from "./features/rail.js"
 
 // Cesium token
 function getCesiumToken() {
@@ -69,10 +70,11 @@ const store = new ProblemStore();
 const cm = new ColumnManager({ viewer, fetcher });
 const hm = new HighlightManager({ viewer, fetcher }, cm, store);
 const sm = new SensorManager({ viewer, fetcher }, cm, hm);
+const rm = new RailManager({ viewer, fetcher });
 
 // 말풍선 레이어 + UI 이벤트 바인딩
 const balloon = createBalloonLayer(viewer);
-initControls({ viewer, cm, hm, sm, buildings, balloon });
+initControls({ viewer, cm, hm, sm, rm, buildings, balloon });
 
 // 콘솔 테스트용 헬퍼
 window.highlightMappedColumnsAll = (b, id, bay) => hm.highlightMappedBoth(b, id, bay);

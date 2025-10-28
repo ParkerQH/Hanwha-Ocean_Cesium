@@ -40,7 +40,7 @@ export class ColumnManager extends BaseManager {
             polygon: {
                 hierarchy: ring.map(([lon, lat]) => Cesium.Cartesian3.fromDegrees(lon, lat)),
                 extrudedHeight: DEFAULTS.EXTRUDED_HEIGHT,
-                material: Cesium.Color.GRAY,
+                material: Cesium.Color.MEDIUMBLUE,
                 shadows: Cesium.ShadowMode.DISABLED,
             },
             show: this.visible,

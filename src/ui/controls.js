@@ -7,7 +7,7 @@ import { removeEntities } from "../core/entityutils.js";
 import { LAYERS } from "../core/constants.js";
 import { handleError, normalizeBay } from "../core/error.js";
 
-export function initControls({ viewer, cm, hm, sm, buildings, balloon }) {
+export function initControls({ viewer, cm, hm, sm, rm, buildings, balloon }) {
     // 드롭다운: 건물/베이
     const buildingSelect = document.getElementById("buildingSelect");
     const baySelect = document.getElementById("baySelect");
@@ -53,10 +53,14 @@ export function initControls({ viewer, cm, hm, sm, buildings, balloon }) {
         try {
             const pairs = Array.from(baySelect.options).filter(o => o.selected && o.value).map(o => o.value);
             const bldgIds = Array.from(buildingSelect.options).filter(o => o.selected && o.value).map(o => o.value);
-            if (pairs.length) 
+            if (pairs.length) {
                 await cm.load({ pairs });
-            else 
+                await rm.load({ pairs });
+            }
+            else {
                 await cm.load({ bldgIds });
+                await rm.load({ bldgIds });
+            }
         } catch (err) {
             handleError(err, { where: "controls.search", userMessage: "기둥 로딩 중 오류가 발생했습니다." });
         }
@@ -77,6 +81,7 @@ export function initControls({ viewer, cm, hm, sm, buildings, balloon }) {
             });
             removeEntities(viewer, toRemove);
             sm.removeAll();
+            rm.removeAll();
             balloon?.clearAll?.();
             const btn = document.getElementById("btnToggleSensors");
             if (btn) 
@@ -91,6 +96,7 @@ export function initControls({ viewer, cm, hm, sm, buildings, balloon }) {
     const inpColId = document.getElementById("inpColId");
     const inpBay = document.getElementById("inpBay");
     const inpSensorId = document.getElementById("inpSensorId");
+    const inpSensorBay = document.getElementById("inpSensorBay");
 
     // 강조 엔티티 조회
     function findHighlightEntity(bldg_id, columnId) {
@@ -167,6 +173,12 @@ export function initControls({ viewer, cm, hm, sm, buildings, balloon }) {
             if (!v) 
                 return;
             const bleId = v;
+            // if (Number.isNaN(bleId)) 
+            //     return handleError(new Error("bad format"), { userMessage: "BLE ID 형식이 맞지 않습니다." });
+
+            const bay = normalizeBay(inpSensorBay?.value || "");
+            if (!bay) 
+                return handleError(new Error("no bay"), { userMessage: "BAY를 입력하세요." });
 
             const found = await sm.lookupByBle(bleId);
             if (!found) 
@@ -185,6 +197,18 @@ export function initControls({ viewer, cm, hm, sm, buildings, balloon }) {
             sm.blinkHalo(bleId, { durationMs: 5000, intervalMs: 400 });
 
             showBalloonForHighlight(bldg_id, pillar_id);
+
+            // const pair = `${bldg_id}::${bay}`;
+            await rm.load({ bldgIds: [bldg_id] });      // 레일 폴리곤
+            await rm.getLines(bldg_id, bay);       // 라인 캐시
+            // 센서 지상좌표(halo 생성 이후 바로 얻음)
+            const now = viewer.clock.currentTime;
+            const halo = viewer.entities.getById(`halo:${bleId}`);
+            const pos = halo?.position?.getValue ? halo.position.getValue(now) : halo?.position;
+            if (pos) {
+                const carto = Cesium.Cartographic.fromCartesian(pos); carto.height = 0;
+                await rm.placeCraneOn({ bldg_id, bay, sensorCarto: carto });
+            }
         } catch (err) {
             handleError(err, { where: "controls.sensorReport" });
         }
@@ -197,7 +221,13 @@ export function initControls({ viewer, cm, hm, sm, buildings, balloon }) {
             if (!v) 
                 return;
             const bleId = v;
+            // if (Number.isNaN(bleId)) 
+            //     return handleError(new Error("bad format"), { userMessage: "BLE ID 형식이 맞지 않습니다." });
             
+            const bay = normalizeBay(inpSensorBay?.value || "");
+            if (!bay) 
+                return handleError(new Error("no bay"), { userMessage: "BAY를 입력하세요." });
+
             const found = await sm.lookupByBle(bleId);
             if (!found) 
                 return handleError(new Error("not found"), { userMessage: "센서와 기둥/공장 매핑을 찾지 못했습니다." });
@@ -205,11 +235,17 @@ export function initControls({ viewer, cm, hm, sm, buildings, balloon }) {
 
             hm.resolve({ bldg_id, columnId: pillar_id });
             sm.removeHalo(bleId);
+            if (bay) rm.removeCrane(bldg_id, bay);
+
             if (sm.visible) {
                 await sm.showForCurrentColumns();
                 document.getElementById("btnToggleSensors").textContent = "센서 숨김";
             }
             clearBalloonForHighlight(bldg_id, pillar_id);
+
+            // 해당 공장에 열린 문제가 더 없으면 레일까지 제거
+            const opens = hm.getOpenBuildings();
+            if (!opens.has(String(bldg_id))) rm.removeByBuilding(bldg_id);
         } catch (err) {
             handleError(err, { where: "controls.sensorResolve" });
         }
