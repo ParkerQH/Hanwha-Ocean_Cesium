@@ -46,31 +46,10 @@
     <div id="cesiumContainer"></div>
     
     <div id="controls">
-      <select id="buildingSelect" multiple size="5" title="공장 선택">
-        <option value="" disabled>공장 선택</option>
-      </select>
-
-      <select id="baySelect" multiple size="5" disabled title="BAY 선택">
-        <option value="" disabled>BAY 선택</option>
-      </select>
-
-      <button id="searchBtn">검색</button>
-      <button id="btnToggleSensors">센서 보기</button>
-      <button id="resetBtn">초기화</button>
-
-      <div style="margin-top:6px; padding-top:6px; border-top:1px solid #ddd">
-        <input id="inpBldg" placeholder="공장ID (예: 123)" style="width:110px">
-        <input id="inpColId" placeholder="기둥ID (예: 123)" style="width:110px">
-        <input id="inpBay" placeholder="BAY (예: 1-BAY)"  style="width:110px">
-        <button id="btnReport" title="강조/신고">강조(신고)</button>
-        <button id="btnResolve" title="해결 처리">해결</button>
-      </div>
-
-      <div style="margin-top:6px; padding-top:6px; border-top:1px solid #ddd">
-        <input id="inpSensorId" type="text" placeholder="BLE 센서ID" style="width:110px">
-        <button id="btnSensorReport">강조(신고)</button>
-        <button id="btnSensorResolve" title="해결 처리">해결</button>
-      </div>
+      <input id="inpSensorId" type="text" placeholder="BLE 센서ID" style="width:110px">
+      <input id="inpSensorBay" type="text" placeholder="BAY (예: 1-BAY)" style="width:110px; text-transform:uppercase">
+      <button id="btnSensorReport">강조(신고)</button>
+      <button id="btnSensorResolve" title="해결 처리">해결</button>
     </div>
 
     <div id="infoPanel">

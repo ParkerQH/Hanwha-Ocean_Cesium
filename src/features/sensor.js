@@ -26,7 +26,7 @@ export class SensorManager extends BaseManager {
         const out = new Map();
         this.viewer.entities.values.forEach(e => {
             if (e.layerTag !== LAYERS.COLUMN) return;
-            const prop = e.rawData || {}; 
+            const prop = e.rawData || {};
             const id = prop.column_id ?? null;
             if (id == null) return;
 
@@ -144,11 +144,6 @@ export class SensorManager extends BaseManager {
         }
     }
 
-    removeAll() { 
-        this.removeSensorsOnly(); 
-        this.visible = false;
-    }
-
     // BLE -> (pillar_id, bldg_id) 추적
     async lookupByBle(bleId) {
         try {
@@ -203,7 +198,7 @@ export class SensorManager extends BaseManager {
     blinkHalo(bleId, { durationMs=5000, intervalMs=400 } = {}) {
         const hid = `halo:${bleId}`;
         let halo = this.viewer.entities.getById(hid);
-        if (!halo) halo = this.addHalo(bleId, 1.5);
+        if (!halo) halo = this.addHalo(bleId, 1.0);
         if (!halo) return;
 
         this._stopBlink(hid);
@@ -214,6 +209,12 @@ export class SensorManager extends BaseManager {
     }
 
     // 내부: 점멸 타이머 정리
-    _stopBlink(hid) { const t = this._blinkTimers.get(hid); if (t){ clearInterval(t.iv); clearTimeout(t.to); this._blinkTimers.delete(hid);} }
-    _stopAllBlinks(){ for (const k of this._blinkTimers.keys()) this._stopBlink(k); }
+    _stopBlink(hid) { 
+        const t = this._blinkTimers.get(hid); 
+        if (t){ 
+            clearInterval(t.iv); 
+            clearTimeout(t.to); 
+            this._blinkTimers.delete(hid);
+        } 
+    }
 }

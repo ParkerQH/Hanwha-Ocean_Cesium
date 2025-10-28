@@ -56,8 +56,8 @@ export class ColumnManager extends BaseManager {
     }
 
     // (공장/BAY/페어) 조건으로 회색 기둥 로딩
-    async load({ pairs=[], bldgIds=[], bays=[] } = {}) {
-        const feats = await this.fetcher.fetchColumns({ pairs, bldgIds, bays });
+    async load({ bldgIds=[] } = {}) {
+        const feats = await this.fetcher.fetchColumns({ bldgIds });
         for (const f of feats) {
             const p = f.properties || {};
             for (const r of ringsFromFeature(f)) this._addOrReusePolygon(r, p);
@@ -104,13 +104,5 @@ export class ColumnManager extends BaseManager {
             const eb = String(ent?.rawData?.bldg_id ?? "");
             if (eb === bid) this.index.delete(k);
         }
-    }
-
-    // 하이라이트 rawData -> 회색 rawData 역참조(말풍선)
-    lookupRaw(meta={}) {
-        const b = meta.bldg_id ?? meta.BLDG_ID ?? "";
-        const id = meta.id ?? "";
-        const k = (b && id) ? `${b}::${id}` : null;
-        return (k && this.index.get(k)?.rawData) ? this.index.get(k).rawData : meta;
     }
 }

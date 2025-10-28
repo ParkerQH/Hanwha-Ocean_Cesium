@@ -1,15 +1,9 @@
 // 문제 상태 저장소("bldg::id")
 import { removeEntity } from "../core/entityutils.js";
-import { normalizeBay } from "../core/error.js";
 
 export class ProblemStore {
     constructor() { this.map = new Map(); }
     _key(bldg_id, columnId) { return `${bldg_id}::${columnId}`; }
-
-    // 문제 오픈 기둥만 반환
-    openRecords() {
-        return [...this.map.values()].filter(r => r.status === "open");
-    }
 
     // 문제 오픈(없으면 생성, 있으면 status만 open으로)
     open(bldg_id, columnId) {
@@ -20,31 +14,23 @@ export class ProblemStore {
     }
 
     // 문제 해결
-    resolve({ viewer, bldg_id, columnId, bay=null, onEmpty }) {
+    resolve({ viewer, bldg_id, columnId, onEmpty }) {
         const k = this._key(bldg_id, columnId);
         const r = this.map.get(k);
         if (!r || r.status !== "open") return false;
 
-        const targetBay = normalizeBay(bay);
-        const remain = [];
         const removedMeta = []; // 제거되는 강조
 
         for (const e of r.entities || []) {
-            const eb = e?.rawData?.bay ?? e?.rawData?.BAY ?? null;
-            if (targetBay && eb !== targetBay) { 
-                remain.push(e); 
-                continue; 
-            }
-            if (e?.rawData) 
-                removedMeta.push(e.rawData);
+        if (e?.rawData) removedMeta.push(e.rawData);
             removeEntity(viewer, e);
         }
-        r.entities = remain;
+        r.entities = [];
+        r.status = "resolved";
+        
+        if (typeof onEmpty === "function") 
+            onEmpty({ removedMeta });
 
-        if (!r.entities.length) {
-            r.status = "resolved";
-            if (typeof onEmpty === "function") onEmpty({ removedMeta });
-        }
         return true;
     }
 

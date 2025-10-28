@@ -130,16 +130,6 @@ export function createBalloonLayer(viewer) {
         }
     }
 
-    // 전체 클리어
-    // function clearAll() {
-    //     for (const { el } of balloons.values()) { 
-    //         try { el.remove(); 
-
-    //         } catch {} 
-    //     }
-    //     balloons.clear();
-    // }
-
     if (!viewer.__balloonPostRenderAttached) {
         viewer.__balloonPostRenderAttached = true;
         viewer.scene.postRender.addEventListener(() => {

@@ -38,24 +38,10 @@ export class DataFetcher {
   }
 
     // 회색 기둥 조회(페어/공장/BAY 조건)
-    async fetchColumns({ pairs=[], bldgIds=[], bays=[] } = {}) {
-        const filters = [];
-        if (pairs.length) {
-        const orParts = pairs.map(v => {
-            const [bid, bay] = String(v).split("::");
-            return (bid && bay)
-            ? `((bldg_id='${bid}') AND (pre_bay='${bay}' OR next_bay='${bay}'))`
-            : null;
-        }).filter(Boolean);
-        if (orParts.length) filters.push("(" + orParts.join(" OR ") + ")");
-        } else {
-        if (bldgIds.length) filters.push("(" + bldgIds.map(id => `bldg_id='${id}'`).join(" OR ") + ")");
-        if (bays.length) {
-            const bayList = bays.flatMap(b => [`pre_bay='${b}'`,`next_bay='${b}'`]);
-            filters.push("(" + bayList.join(" OR ") + ")");
-        }
-        }
-        const cql = filters.join(" AND ");
+    async fetchColumns({ bldgIds=[] } = {}) {
+        const cql = (bldgIds.length)
+            ? "(" + bldgIds.map(id => `bldg_id='${id}'`).join(" OR ") + ")"
+            : "";
         const json = await this.wfsGet({ cql });
         return json?.features ?? [];
     }

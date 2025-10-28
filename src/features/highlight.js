@@ -1,13 +1,12 @@
 /** 
  * HighlightManager
  * 문제 상태(ProblemStore)와 연동하여 하이라이트(빨간 기둥) 생성/정리
- * 키는 (bldg,id)만 저장. bay는 엔티티 meta로만 남김
+ * 키는 (bldg,id)만 저장.
  */
 import * as Cesium from "cesium";
 import { BaseManager } from "../core/BaseManager.js";
 import { ringsFromFeature, removeEntities } from "../core/entityutils.js";
 import { LAYERS, DEFAULTS } from "../core/constants.js";
-import { normalizeBay } from "../core/error.js";
 
 export class HighlightManager extends BaseManager {
     constructor(deps, columnManager, problemStore) {
@@ -38,11 +37,11 @@ export class HighlightManager extends BaseManager {
         const meta = raw ?? {};
         const bldg_id = fp.bldg_id ?? meta.bldg_id;
         const column_id = meta.id ?? fp.id;
-        const bay = normalizeBay(meta.bay ?? fp.bay);
+        // const bay = normalizeBay(meta.bay ?? fp.bay);
 
         const made = [];
         for (const ring of ringsFromFeature(f)) {
-            made.push(this._addRed(ring, { bldg_id, column_id, bay }, h));
+            made.push(this._addRed(ring, { bldg_id, column_id }, h));
         }
         // 같은 (bldg,id) 회색 OFF
         if (bldg_id != null && column_id != null) this.cm.setShow(bldg_id, column_id, false);
@@ -56,15 +55,11 @@ export class HighlightManager extends BaseManager {
         this.store.open(bldg_id, columnId);
     }
 
-    /**
-     * 문제 해결
-     * bay 미지정: 해당 (bldg,id) 하이라이트 제거 -> 회색 기둥 show(true)
-     * bay 지정: 그 bay 태그 기준 매핑 기둥 함께 제거
-     */
-    resolve({ bldg_id, columnId, bay=null }) {
+    // 문제 해결
+    resolve({ bldg_id, columnId }) {
         const ok = this.store.resolve({
             viewer: this.viewer,
-            bldg_id, columnId, bay,
+            bldg_id, columnId,
             onEmpty: ({ removedMeta=[] } = {}) => {
                 // 남은 게 없으면 회색 복구(문제 + 매핑 모두)
                 this.cm.setShow(bldg_id, columnId, true);
@@ -72,7 +67,7 @@ export class HighlightManager extends BaseManager {
                 // 연쇄로 같이 꺼져 있던 매핑 기둥들도 복구
                 for (const rd of removedMeta) {
                     const bid = rd?.bldg_id ?? bldg_id;
-                    const cid = rd?.column_id ?? rd?.id ?? rd?.pre_id ?? rd?.next_id;
+                    const cid = rd?.id;
                     if (bid != null && cid != null) this.cm.setShow(bid, cid, true);
                 }
 
@@ -111,32 +106,5 @@ export class HighlightManager extends BaseManager {
         this.report({ bldg_id, columnId });
         const ents = this.addForFeature(f, { bldg_id, column_id: Number(columnId) });
         this.store.addEntities(bldg_id, columnId, ents);
-    }
-
-    // 매핑(양면) 하이라이트: 같은 id, 입력 bay와 반대 bay 모두 올리기
-    async highlightMappedBoth(bldg_id, columnId, bay) {
-        const json = await this.fetcher.wfsGet({ cql: `bldg_id='${bldg_id}'` });
-        const feats = json?.features || [];
-
-        // 이 기둥 id가 해당 bay의 면과 매칭되는지 검사
-        const isMatch = (p, b, id) =>
-        (p.id == id && (p.pre_bay === b || p.next_bay === b)) ||
-        (p.pre_id == id && (p.pre_bay === b || p.next_bay === b)) ||
-        (p.next_id == id && (p.pre_bay === b || p.next_bay === b));
-
-        const matched = feats.filter(f => isMatch(f.properties||{}, bay, columnId)).slice(0,2);
-        if (!matched.length) return;
-
-        this.report({ bldg_id, columnId });
-
-        // 두 하이라이트 모두 같은 bay(입력)로 태깅
-        for (const f of matched) {
-            const p = f.properties || {};
-            const feature = p.id;
-            
-            const meta = { bldg_id, column_id: feature, bay };
-            const ents = this.addForFeature(f, meta);
-            this.store.addEntities(bldg_id, columnId, ents);
-        }
     }
 }

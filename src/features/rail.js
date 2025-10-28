@@ -215,26 +215,5 @@ export class RailManager extends BaseManager {
       if (key.startsWith(`${bldg_id}::`)) this.removeCrane(bldg_id, key.split("::")[1]);
     }
   }
-
-  // 전체 제거
-  removeAll() {
-    const rm = [];
-    this.viewer.entities.values.forEach(e => { if (e.layerTag === LAYERS.RAIL) rm.push(e); });
-    removeEntities(this.viewer, rm);
-    this.index.clear();
-    this._lines.clear();
-    for (const [key, m] of this._crane) try { this.viewer.scene.primitives.remove(m); } catch {}
-    this._crane.clear();
-  }
-
-  // pair 키로 기존 디버그 포인트 제거
-  _removeDebugPointsByKey(K) {
-    const arr = this._dbgPts.get(K);
-    if (!arr) return;
-    for (const e of arr) {
-      try { this.viewer.entities.remove(e); } catch {}
-    }
-    this._dbgPts.delete(K);
-  }
 }
 

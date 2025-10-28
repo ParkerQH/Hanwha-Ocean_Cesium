@@ -7,7 +7,6 @@
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
-import buildings from "./service/buildings.json";
 import { DataFetcher } from "./service/DataFetcher.js";
 import { ColumnManager } from "./features/polygon.js";
 import { HighlightManager } from "./features/highlight.js";
@@ -74,7 +73,7 @@ const rm = new RailManager({ viewer, fetcher });
 
 // 말풍선 레이어 + UI 이벤트 바인딩
 const balloon = createBalloonLayer(viewer);
-initControls({ viewer, cm, hm, sm, rm, buildings, balloon });
+initControls({ viewer, cm, hm, sm, rm, balloon });
 
 // 콘솔 테스트용 헬퍼
 window.highlightMappedColumnsAll = (b, id, bay) => hm.highlightMappedBoth(b, id, bay);
