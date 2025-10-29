@@ -66,18 +66,17 @@ viewer.imageryLayers.addImageryProvider(baseWms);
 // 서비스/상태/매니저들 생성(의존성 주입)
 const fetcher = new DataFetcher();
 const store = new ProblemStore();
-const cm = new ColumnManager({ viewer, fetcher });
-const hm = new HighlightManager({ viewer, fetcher }, cm, store);
-const sm = new SensorManager({ viewer, fetcher }, cm, hm);
-const rm = new RailManager({ viewer, fetcher });
+const columnManager = new ColumnManager({ viewer, fetcher });
+const highlightManager = new HighlightManager({ viewer, fetcher }, columnManager, store);
+const sensorManager = new SensorManager({ viewer, fetcher }, columnManager, highlightManager);
+const railManager = new RailManager({ viewer, fetcher });
 
 // 말풍선 레이어 + UI 이벤트 바인딩
 const balloon = createBalloonLayer(viewer);
-initControls({ viewer, cm, hm, sm, rm, balloon });
+initControls({ viewer, columnManager, highlightManager, sensorManager, railManager, balloon });
 
 // 콘솔 테스트용 헬퍼
-window.highlightMappedColumnsAll = (b, id, bay) => hm.highlightMappedBoth(b, id, bay);
-window.highlightSingleColumnById = (b, id) => hm.highlightSingle(b, id);
-window.resolveProblem = (b, id, bay) => hm.resolve({ bldg_id:b, columnId:id, bay });
+window.highlightSingleColumnById = (bldgId, id) => hm.highlightSingle(bldgId, id);
+window.resolveProblem = (bldgId, id) => hm.resolve({ bldg_id:bldgId, columnId:id });
 window.listOpenProblems = () => hm.listOpen();
 window.getOpenBuildings = () => hm.getOpenBuildings();

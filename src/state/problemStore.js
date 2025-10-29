@@ -7,26 +7,26 @@ export class ProblemStore {
 
     // 문제 오픈(없으면 생성, 있으면 status만 open으로)
     open(bldg_id, columnId) {
-        const k = this._key(bldg_id, columnId);
-        const r = this.map.get(k);
-        if (!r) this.map.set(k, { status: "open", entities: [], meta: { bldg_id, columnId } });
+        const key = this._key(bldg_id, columnId);
+        const r = this.map.get(key);
+        if (!r) this.map.set(key, { status: "open", entities: [], meta: { bldg_id, columnId } });
         else r.status = "open";
     }
 
     // 문제 해결
     resolve({ viewer, bldg_id, columnId, onEmpty }) {
-        const k = this._key(bldg_id, columnId);
-        const r = this.map.get(k);
-        if (!r || r.status !== "open") return false;
+        const key = this._key(bldg_id, columnId);
+        const remove = this.map.get(key);
+        if (!remove || remove.status !== "open") return false;
 
         const removedMeta = []; // 제거되는 강조
 
-        for (const e of r.entities || []) {
-        if (e?.rawData) removedMeta.push(e.rawData);
-            removeEntity(viewer, e);
+        for (const ent of remove.entities || []) {
+        if (ent?.rawData) removedMeta.push(ent.rawData);
+            removeEntity(viewer, ent);
         }
-        r.entities = [];
-        r.status = "resolved";
+        remove.entities = [];
+        remove.status = "resolved";
         
         if (typeof onEmpty === "function") 
             onEmpty({ removedMeta });
@@ -36,15 +36,15 @@ export class ProblemStore {
 
     // 강조 엔티티를 문제 레코드에 추가
     addEntities(bldg_id, columnId, ents=[]) {
-        const r = this.map.get(this._key(bldg_id, columnId));
-        if (r) r.entities = (r.entities || []).concat(ents);
+        const remove = this.map.get(this._key(bldg_id, columnId));
+        if (remove) remove.entities = (remove.entities || []).concat(ents);
     }
 
     // 열려있는 문제 목록/건물 집합
-    listOpen() { return [...this.map.values()].filter(r => r.status === "open").map(r => r.meta); }
+    listOpen() { return [...this.map.values()].filter(remove => remove.status === "open").map(remove => remove.meta); }
     openBuildings() {
-        const s = new Set();
-        for (const r of this.map.values()) if (r.status === "open" && r.meta?.bldg_id) s.add(String(r.meta.bldg_id));
-        return s;
+        const setup = new Set();
+        for (const remove of this.map.values()) if (remove.status === "open" && remove.meta?.bldg_id) setup.add(String(remove.meta.bldg_id));
+        return setup;
     }
 }

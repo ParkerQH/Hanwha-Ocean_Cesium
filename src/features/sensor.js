@@ -12,8 +12,8 @@ import { handleError } from "../core/error.js";
 export class SensorManager extends BaseManager {
     constructor(deps, columnManager, highlightManager) {
         super(deps);
-        this.cm = columnManager;
-        this.hm = highlightManager;
+        this.columnManager = columnManager;
+        this.highlightManager = highlightManager;
 
         this.visible = false;
         this.sensorIds = new Set();     // 센서 엔티티 id(ble:pillar:ble)
@@ -24,23 +24,23 @@ export class SensorManager extends BaseManager {
     // 현재 로드된 회색 기둥들 메타 수집(id -> 링/높이/엔티티)
     _collectColumns() {
         const out = new Map();
-        this.viewer.entities.values.forEach(e => {
-            if (e.layerTag !== LAYERS.COLUMN) return;
-            const prop = e.rawData || {};
+        this.viewer.entities.values.forEach(ent => {
+            if (ent.layerTag !== LAYERS.COLUMN) return;
+            const prop = ent.rawData || {};
             const id = prop.column_id ?? null;
             if (id == null) return;
 
             const now = this.viewer.clock.currentTime;
-            let h = e?.polygon?.hierarchy; if (typeof h?.getValue === "function") h = h.getValue(now);
+            let h = ent?.polygon?.hierarchy; if (typeof h?.getValue === "function") h = h.getValue(now);
             const pos = h?.positions || h || []; if (!pos.length) return;
 
             const ringLL = pos.map(cartToLonLat);
 
-            let extr = e?.polygon?.extrudedHeight, height = DEFAULTS.EXTRUDED_HEIGHT;
+            let extr = ent?.polygon?.extrudedHeight, height = DEFAULTS.EXTRUDED_HEIGHT;
             if (typeof extr?.getValue === "function") height = Number(extr.getValue(now)) || DEFAULTS.EXTRUDED_HEIGHT;
             else if (typeof extr === "number") height = extr;
 
-            out.set(String(id), { ringLL, height, entity: e });
+            out.set(String(id), { ringLL, height, entity: ent });
         });
         return out;
     }
@@ -48,12 +48,12 @@ export class SensorManager extends BaseManager {
     // 한 기둥에 센서들 배치
     _placeSensorsFor(columnId, sensors, meta) {
         const { ringLL, height } = meta;
-        const z = height / DEFAULTS.SENSOR_N;
+        const zHeight = height / DEFAULTS.SENSOR_N;
         const area = signedAreaLL(ringLL); // 외곽 방향 판정
 
-        for (const s of sensors) {
-            const mid = edgeMidpointLL(ringLL, s.line);
-            const midPos = Cesium.Cartesian3.fromDegrees(mid.lon, mid.lat, z);
+        for (const sensor of sensors) {
+            const mid = edgeMidpointLL(ringLL, sensor.line);
+            const midPos = Cesium.Cartesian3.fromDegrees(mid.lon, mid.lat, zHeight);
 
             // 지역 좌표계(ENU)
             const enu = Cesium.Transforms.eastNorthUpToFixedFrame(midPos);
@@ -62,17 +62,17 @@ export class SensorManager extends BaseManager {
             const up = Cesium.Matrix4.getColumn(enu, 2, new Cesium.Cartesian3());
 
             // 변 방향 -> 외곽 방향
-            const m = ringLL.length;
-            const i = ((s.line % m) + m) % m, j = (i + 1) % m;
-            const p1 = Cesium.Cartesian3.fromDegrees(ringLL[i].lon, ringLL[i].lat, z);
-            const p2 = Cesium.Cartesian3.fromDegrees(ringLL[j].lon, ringLL[j].lat, z);
+            const vertexCount = ringLL.length;
+            const startIdx = ((sensor.line % vertexCount) + vertexCount) % vertexCount, endIdx = (startIdx + 1) % vertexCount;
+            const point1 = Cesium.Cartesian3.fromDegrees(ringLL[startIdx].lon, ringLL[startIdx].lat, zHeight);
+            const point2 = Cesium.Cartesian3.fromDegrees(ringLL[endIdx].lon, ringLL[endIdx].lat, zHeight);
             const edge = Cesium.Cartesian3.normalize(
-                Cesium.Cartesian3.subtract(p2, p1, new Cesium.Cartesian3()),
+                Cesium.Cartesian3.subtract(point2, point1, new Cesium.Cartesian3()),
                 new Cesium.Cartesian3()
             );
             let outward = Cesium.Cartesian3.normalize(Cesium.Cartesian3.cross(edge, up, new Cesium.Cartesian3()), new Cesium.Cartesian3());
             if (area < 0) Cesium.Cartesian3.multiplyByScalar(outward, -1, outward);
-
+            
             const finalPos = Cesium.Cartesian3.add(
                 midPos,
                 Cesium.Cartesian3.multiplyByScalar(outward, DEFAULTS.SENSOR_OFFSET, new Cesium.Cartesian3()),
@@ -84,13 +84,13 @@ export class SensorManager extends BaseManager {
             const heading = Math.atan2(eV, nV);
             const orientation = Cesium.Transforms.headingPitchRollQuaternion(finalPos, new Cesium.HeadingPitchRoll(heading, 0, 0));
 
-            const id = `ble:${columnId}:${s.ble_id}`;
+            const id = `ble:${columnId}:${sensor.ble_id}`;
             if (!this.viewer.entities.getById(id)) {
                 this.viewer.entities.add({
                     id, position: finalPos, orientation,
                     ellipsoid: { radii: new Cesium.Cartesian3(DEFAULTS.SENSOR_RADIUS, DEFAULTS.SENSOR_RADIUS, DEFAULTS.SENSOR_RADIUS), material: Cesium.Color.WHITE },
                     layerTag: LAYERS.SENSOR,
-                    rawData: { ble_id: s.ble_id, pillar_id: columnId, line: s.line },
+                    rawData: { ble_id: sensor.ble_id, pillar_id: columnId, line: sensor.line },
                 });
                 this.sensorIds.add(id);
             }
@@ -108,10 +108,10 @@ export class SensorManager extends BaseManager {
 
             const list = await this.fetcher.sensorsByPillars(pillarIds.join(","));
             const grouped = new Map(); // pillarId -> sensors[]
-            for (const s of list) {
-                const k = String(s.pillar_id);
+            for (const sensor of list) {
+                const k = String(sensor.pillar_id);
                 const arr = grouped.get(k) || [];
-                arr.push(s);
+                arr.push(sensor);
                 grouped.set(k, arr);
             }
 
@@ -138,8 +138,8 @@ export class SensorManager extends BaseManager {
     // 모든 센서/점멸 제거
     removeSensorsOnly(now=false) { 
         for (const id of [...this.sensorIds]) {
-            const e = this.viewer.entities.getById(id);
-            removeEntity(this.viewer, e)
+            const ent = this.viewer.entities.getById(id);
+            removeEntity(this.viewer, ent)
             this.sensorIds.delete(id);  
         }
     }
@@ -147,9 +147,9 @@ export class SensorManager extends BaseManager {
     // BLE -> (pillar_id, bldg_id) 추적
     async lookupByBle(bleId) {
         try {
-            const d = await this.fetcher.sensorDetail(bleId);
-            if (!d) return null;
-            const pillar_id = d.pillar_id;
+            const bleInfo = await this.fetcher.sensorDetail(bleId);
+            if (!bleInfo) return null;
+            const pillar_id = bleInfo.pillar_id;
             const bldg_id = await this.fetcher.getBldgIdByPillar(pillar_id);
             return bldg_id ? { pillar_id, bldg_id } : null;
         } catch (err) {
@@ -160,9 +160,9 @@ export class SensorManager extends BaseManager {
 
     // HALO(센서 강조 링) 생성
     addHalo(bleId, r=0.5) {
-        const hid = `halo:${bleId}`;
-        this._stopBlink(hid);
-        const old = this.viewer.entities.getById(hid);
+        const haloId = `halo:${bleId}`;
+        this._stopBlink(haloId);
+        const old = this.viewer.entities.getById(haloId);
         if (old) this.viewer.entities.remove(old);
 
         // 해당 BLE 센서 엔티티 찾기
@@ -170,8 +170,8 @@ export class SensorManager extends BaseManager {
         for (const id of this.sensorIds) if (id.endsWith(`:${bleId}`)) { sensorEnt = this.viewer.entities.getById(id); break; }
         if (!sensorEnt) return null;
 
-        const e = this.viewer.entities.add({
-            id: hid,
+        const ent = this.viewer.entities.add({
+            id: haloId,
             position: sensorEnt.position,
             orientation: sensorEnt.orientation,
             ellipsoid: { radii: new Cesium.Cartesian3(r,r,r), material: Cesium.Color.fromBytes(255,102,102) },
@@ -179,42 +179,42 @@ export class SensorManager extends BaseManager {
             layerTag: LAYERS.HALO,
             rawData: { ble_id: bleId },
         });
-        this.haloIds.add(hid);
+        this.haloIds.add(haloId);
         this.requestRender();
-        return e;
+        return ent;
     }
 
     // HALO 제거(개별)
     removeHalo(bleId) {
-        const hid = `halo:${bleId}`;
-        this._stopBlink(hid);
-        const ent = this.viewer.entities.getById(hid);
+        const haloId = `halo:${bleId}`;
+        this._stopBlink(haloId);
+        const ent = this.viewer.entities.getById(haloId);
         if (ent) this.viewer.entities.remove(ent);
-        this.haloIds.delete(hid);
+        this.haloIds.delete(haloId);
         this.requestRender();
     }
 
     // HALO 깜빡임
     blinkHalo(bleId, { durationMs=5000, intervalMs=400 } = {}) {
-        const hid = `halo:${bleId}`;
-        let halo = this.viewer.entities.getById(hid);
+        const haloId = `halo:${bleId}`;
+        let halo = this.viewer.entities.getById(haloId);
         if (!halo) halo = this.addHalo(bleId, 1.0);
         if (!halo) return;
 
-        this._stopBlink(hid);
+        this._stopBlink(haloId);
         let visible = true;
-        const iv = setInterval(() => { visible = !visible; halo.show = visible; this.requestRender(); }, intervalMs);
-        const to = setTimeout(() => { clearInterval(iv); this._blinkTimers.delete(hid); halo.show = true; this.requestRender(); }, durationMs);
-        this._blinkTimers.set(hid, { iv, to });
+        const interval = setInterval(() => { visible = !visible; halo.show = visible; this.requestRender(); }, intervalMs);
+        const timeout = setTimeout(() => { clearInterval(interval); this._blinkTimers.delete(haloId); halo.show = true; this.requestRender(); }, durationMs);
+        this._blinkTimers.set(haloId, { interval, timeout });
     }
 
     // 내부: 점멸 타이머 정리
-    _stopBlink(hid) { 
-        const t = this._blinkTimers.get(hid); 
-        if (t){ 
-            clearInterval(t.iv); 
-            clearTimeout(t.to); 
-            this._blinkTimers.delete(hid);
+    _stopBlink(haloId) { 
+        const timer = this._blinkTimers.get(haloId); 
+        if (timer){ 
+            clearInterval(timer.interval); 
+            clearTimeout(timer.timeout); 
+            this._blinkTimers.delete(haloId);
         } 
     }
 }

@@ -11,20 +11,20 @@ import { LAYERS, DEFAULTS } from "../core/constants.js";
 export class HighlightManager extends BaseManager {
     constructor(deps, columnManager, problemStore) {
         super(deps);
-        this.cm = columnManager;
+        this.columnManager = columnManager;
         this.store = problemStore; // 외부 상태 주입(열림/해결/목록 등)
     }
 
     // 내부: 빨간 폴리곤 엔티티 생성(단일)
-    _addRed(ring, raw, h=DEFAULTS.HIGHLIGHT_HEIGHT) {
+    _addRed(ring, raw, height=DEFAULTS.HIGHLIGHT_HEIGHT) {
         const ent = this.viewer.entities.add({
             polygon: {
                 hierarchy: ring.map(([lon, lat]) => Cesium.Cartesian3.fromDegrees(lon, lat)),
-                extrudedHeight: h,
+                extrudedHeight: height,
                 material: Cesium.Color.RED,
                 shadows: Cesium.ShadowMode.DISABLED,
             },
-            show: this.cm.visible,
+            show: this.columnManager.visible,
             layerTag: LAYERS.HIGHLIGHT,
         });
         ent.rawData = raw || null;
@@ -32,19 +32,17 @@ export class HighlightManager extends BaseManager {
     }
 
     // 공통: Feature 하나에 대해 하이라이트 엔티티들 생성
-    addForFeature(f, raw=null, h=DEFAULTS.HIGHLIGHT_HEIGHT) {
-        const fp = f.properties ?? {};
-        const meta = raw ?? {};
-        const bldg_id = fp.bldg_id ?? meta.bldg_id;
-        const column_id = meta.id ?? fp.id;
-        // const bay = normalizeBay(meta.bay ?? fp.bay);
+    addForFeature(feature, height=DEFAULTS.HIGHLIGHT_HEIGHT) {
+        const featureProp = feature.properties ?? {};
+        const bldg_id = featureProp.bldg_id;
+        const column_id = featureProp.id;
 
         const made = [];
-        for (const ring of ringsFromFeature(f)) {
-            made.push(this._addRed(ring, { bldg_id, column_id }, h));
+        for (const ring of ringsFromFeature(feature)) {
+            made.push(this._addRed(ring, { bldg_id, column_id }, height));
         }
         // 같은 (bldg,id) 회색 OFF
-        if (bldg_id != null && column_id != null) this.cm.setShow(bldg_id, column_id, false);
+        if (bldg_id != null && column_id != null) this.columnManager.setShow(bldg_id, column_id, false);
 
         this.requestRender();
         return made;
@@ -62,23 +60,23 @@ export class HighlightManager extends BaseManager {
             bldg_id, columnId,
             onEmpty: ({ removedMeta=[] } = {}) => {
                 // 남은 게 없으면 회색 복구(문제 + 매핑 모두)
-                this.cm.setShow(bldg_id, columnId, true);
+                this.columnManager.setShow(bldg_id, columnId, true);
 
                 // 연쇄로 같이 꺼져 있던 매핑 기둥들도 복구
-                for (const rd of removedMeta) {
-                    const bid = rd?.bldg_id ?? bldg_id;
-                    const cid = rd?.id;
-                    if (bid != null && cid != null) this.cm.setShow(bid, cid, true);
+                for (const removed of removedMeta) {
+                    const bldgId = removed?.bldg_id;
+                    const columnId = removed?.id;
+                    if (bldgId != null && columnId != null) this.columnManager.setShow(bldgId, columnId, true);
                 }
 
                 // 동일 (bldg,id) 하이라이트 제거
                 const sweep = [];
-                this.viewer.entities.values.forEach(e => {
-                if (e.layerTag === LAYERS.HIGHLIGHT) {
-                    const rd = e.rawData || {};
-                    if (String(rd.bldg_id ?? "") === String(bldg_id) &&
-                        String(rd.id ?? "") === String(columnId)) {
-                    sweep.push(e);
+                this.viewer.entities.values.forEach(ent => {
+                if (ent.layerTag === LAYERS.HIGHLIGHT) {
+                    const rawData = ent.rawData || {};
+                    if (String(rawData.bldg_id ?? "") === String(bldg_id) &&
+                        String(rawData.id ?? "") === String(columnId)) {
+                    sweep.push(ent);
                     }
                 }
                 });
@@ -87,7 +85,7 @@ export class HighlightManager extends BaseManager {
                 // 이 공장에 더 이상 열린 문제가 없으면 회색 기둥도 모두 제거
                 const opens = this.store.openBuildings(); // Set<string>
                 if (!opens.has(String(bldg_id))) {
-                    this.cm.removeByBuilding?.(bldg_id);
+                    this.columnManager.removeByBuilding?.(bldg_id);
                 }
             }
         });
@@ -101,10 +99,10 @@ export class HighlightManager extends BaseManager {
 
     // 단일 기둥 하이라이트
     async highlightSingle(bldg_id, columnId) {
-        const f = await this.fetcher.getColumnById(bldg_id, columnId);
-        if (!f) return;
+        const feature = await this.fetcher.getColumnById(bldg_id, columnId);
+        if (!feature) return;
         this.report({ bldg_id, columnId });
-        const ents = this.addForFeature(f, { bldg_id, column_id: Number(columnId) });
+        const ents = this.addForFeature(feature);
         this.store.addEntities(bldg_id, columnId, ents);
     }
 }

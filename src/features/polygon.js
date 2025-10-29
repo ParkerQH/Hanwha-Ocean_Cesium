@@ -17,9 +17,9 @@ export class ColumnManager extends BaseManager {
 
     // props로부터 인덱스 키 생성
     _key(props = {}) {
-        const b = props.bldg_id ?? "";
+        const bldg = props.bldg_id ?? "";
         const id = props.id;
-        return (b && (id !== undefined && id !== null)) ? `${b}::${id}` : null;
+        return (bldg && (id !== undefined && id !== null)) ? `${bldg}::${id}` : null;
     }
 
     // 회색 폴리곤 엔티티 생성/재사용
@@ -57,10 +57,10 @@ export class ColumnManager extends BaseManager {
 
     // (공장/BAY/페어) 조건으로 회색 기둥 로딩
     async load({ bldgIds=[] } = {}) {
-        const feats = await this.fetcher.fetchColumns({ bldgIds });
-        for (const f of feats) {
-            const p = f.properties || {};
-            for (const r of ringsFromFeature(f)) this._addOrReusePolygon(r, p);
+        const features = await this.fetcher.fetchColumns({ bldgIds });
+        for (const feature of features) {
+            const prop = feature.properties || {};
+            for (const ring of ringsFromFeature(feature)) this._addOrReusePolygon(ring, prop);
         }
         this.applyVisibility(this.visible);
     }
@@ -68,11 +68,11 @@ export class ColumnManager extends BaseManager {
     // 전역 가시성(회색/강조 동시 적용)
     applyVisibility(on) {
         this.visible = !!on;
-        this.viewer.entities.values.forEach(e => {
-            if (e.layerTag === LAYERS.COLUMN) { 
-                e.show = e.show && this.visible;
-            } else if (e.layerTag === LAYERS.HIGHLIGHT) {
-                e.show = this.visible;
+        this.viewer.entities.values.forEach(ent => {
+            if (ent.layerTag === LAYERS.COLUMN) { 
+                ent.show = ent.show && this.visible;
+            } else if (ent.layerTag === LAYERS.HIGHLIGHT) {
+                ent.show = this.visible;
             }
         });
         this.requestRender();
@@ -90,19 +90,18 @@ export class ColumnManager extends BaseManager {
 
     // 공장 단위 엔티티/인덱스 정리
     removeByBuilding(bldgId) {
-        const bid = String(bldgId);
         const remove = [];
-        this.viewer.entities.values.forEach(e => {
-        if (e.layerTag === LAYERS.COLUMN) {
-            const eb = String(e.rawData?.bldg_id ?? "");
-            if (eb === bid) remove.push(e);
+        this.viewer.entities.values.forEach(ent => {
+        if (ent.layerTag === LAYERS.COLUMN) {
+            const entBldg = String(ent.rawData?.bldg_id ?? "");
+            if (entBldg === bldgId) remove.push(ent);
         }
         });
         removeEntities(this.viewer, remove);
 
-        for (const [k, ent] of Array.from(this.index.entries())) {
-            const eb = String(ent?.rawData?.bldg_id ?? "");
-            if (eb === bid) this.index.delete(k);
+        for (const [key, entry] of Array.from(this.index.entries())) {
+            const entryBldg = String(entry?.rawData?.bldg_id ?? "");
+            if (entryBldg === bldgId) this.index.delete(key);
         }
     }
 }

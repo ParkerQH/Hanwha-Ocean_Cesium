@@ -2,26 +2,27 @@
 import * as Cesium from "cesium";
 
 // GeoJSON Feature -> 외곽 링 배열(Polygon/MultiPolygon만 지원)
-export function ringsFromFeature(f) {
-    const g = f?.geometry; if (!g) return [];
-    if (g.type === "Polygon") return [g.coordinates?.[0] || []];
-    if (g.type === "MultiPolygon") return (g.coordinates || []).map(c => c?.[0] || []);
+export function ringsFromFeature(feature) {
+    const geom = feature?.geometry; 
+    if (!geom) return [];
+    if (geom.type === "Polygon") return [geom.coordinates?.[0] || []];
+    if (geom.type === "MultiPolygon") return (geom.coordinates || []).map(coordinate => coordinate?.[0] || []);
     return [];
 }
 
 // Cartesian3 -> 경도/위도 변환
 export function cartToLonLat(cart) {
-    const c = Cesium.Ellipsoid.WGS84.cartesianToCartographic(cart);
-    return { lon: Cesium.Math.toDegrees(c.longitude), lat: Cesium.Math.toDegrees(c.latitude) };
+    const cartLL = Cesium.Ellipsoid.WGS84.cartesianToCartographic(cart);
+    return { lon: Cesium.Math.toDegrees(cartLL.longitude), lat: Cesium.Math.toDegrees(cartLL.latitude) };
 }
 
 // 폴리곤 엔티티의 화면 말풍선 표시용 중심점
 export function centroidOfPolygonEntity(entity, viewer) {
     const now = viewer.clock.currentTime;
-    let h = entity?.polygon?.hierarchy;
-    if (!h) return null;
-    if (typeof h.getValue === "function") h = h.getValue(now);
-    const positions = h?.positions || h || [];
+    let polygonHierarchy = entity?.polygon?.hierarchy;
+    if (!polygonHierarchy) return null;
+    if (typeof polygonHierarchy.getValue === "function") polygonHierarchy = polygonHierarchy.getValue(now);
+    const positions = polygonHierarchy?.positions || polygonHierarchy || [];
     if (!positions.length) return null;
 
     // 단순 평균 중심
@@ -30,30 +31,30 @@ export function centroidOfPolygonEntity(entity, viewer) {
     lon /= positions.length; lat /= positions.length;
 
     // 높이(Extruded Height) + 0.5m
-    let extr = entity?.polygon?.extrudedHeight, height = 0;
-    if (typeof extr?.getValue === "function") height = Number(extr.getValue(now)) || 0;
-    else if (typeof extr === "number") height = extr;
+    let extrudedHeight = entity?.polygon?.extrudedHeight, height = 0;
+    if (typeof extrudedHeight?.getValue === "function") height = Number(extrudedHeight.getValue(now)) || 0;
+    else if (typeof extrudedHeight === "number") height = extrudedHeight;
 
     return Cesium.Cartesian3.fromDegrees(lon, lat, height + 3);
 }
 
 // 외곽 방향 판정
-export function signedAreaLL(pts) {
+export function signedAreaLL(positions) {
     let a = 0;
-    for (let i = 0; i < pts.length; i++) {
-        const j = (i + 1) % pts.length;
-        a += pts[i].lon * pts[j].lat - pts[j].lon * pts[i].lat;
+    for (let i = 0; i < positions.length; i++) {
+        const j = (i + 1) % positions.length;
+        a += positions[i].lon * positions[j].lat - positions[j].lon * positions[i].lat;
     }
     return a / 2;
 }
 
 // 센서 배치 기준 좌표값 리턴
 export function edgeMidpointLL(ringLL, lineIndex) {
-    const m = ringLL.length;
-    const i = ((lineIndex % m) + m) % m;
-    const j = (i + 1) % m;
-    const p1 = ringLL[i], p2 = ringLL[j];
-    return { lon: (p1.lon + p2.lon) / 2, lat: (p1.lat + p2.lat) / 2 };
+    const vertexCount = ringLL.length;
+    const startIdx = ((lineIndex % vertexCount) + vertexCount) % vertexCount;
+    const endIdx = (startIdx + 1) % vertexCount;
+    const point1 = ringLL[startIdx], point2 = ringLL[endIdx];
+    return { lon: (point1.lon + point2.lon) / 2, lat: (point1.lat + point2.lat) / 2 };
 }
 
 // 즉시 제거 유틸
@@ -64,8 +65,8 @@ export function removeEntity(viewer, entity) {
 }
 
 export function removeEntities(viewer, entities) {
-  const arr = Array.isArray(entities) ? entities : [entities];
-  for (const e of arr) removeEntity(viewer, e);
+  const array = Array.isArray(entities) ? entities : [entities];
+  for (const ent of array) removeEntity(viewer, ent);
 }
 
 // 센서 Cartographic와 라인(경위도 배열 [[lon,lat],...]) 사이 최단투영점 -> Cartographic
@@ -129,32 +130,32 @@ export function closestPointOnLineLL(sensorCarto, lineLL) {
 
 // 두 점 수평거리(m)
 export function planarDistanceMeters(a, b) {
-  const p1 = Cesium.Cartesian3.fromRadians(a.longitude, a.latitude, 0);
-  const p2 = Cesium.Cartesian3.fromRadians(b.longitude, b.latitude, 0);
-  return Cesium.Cartesian3.distance(p1, p2);
+  const point1 = Cesium.Cartesian3.fromRadians(a.longitude, a.latitude, 0);
+  const point2 = Cesium.Cartesian3.fromRadians(b.longitude, b.latitude, 0);
+  return Cesium.Cartesian3.distance(point1, point2);
 }
 
 // a->b 방위각(라디안) — ENU 기준 atan2(y, x)
 export function headingBetweenCarto(a, b) {
-  const p1 = Cesium.Cartesian3.fromRadians(a.longitude, a.latitude, 0);
-  const p2 = Cesium.Cartesian3.fromRadians(b.longitude, b.latitude, 0);
+  const point1 = Cesium.Cartesian3.fromRadians(a.longitude, a.latitude, 0);
+  const point2 = Cesium.Cartesian3.fromRadians(b.longitude, b.latitude, 0);
 
-  const enu = Cesium.Transforms.eastNorthUpToFixedFrame(p1);
+  const enu = Cesium.Transforms.eastNorthUpToFixedFrame(point1);
   const inv = Cesium.Matrix4.inverse(enu, new Cesium.Matrix4());
 
-  const local = Cesium.Matrix4.multiplyByPoint(inv, p2, new Cesium.Cartesian3());
+  const local = Cesium.Matrix4.multiplyByPoint(inv, point2, new Cesium.Cartesian3());
   return Math.atan2(local.y, local.x);
 }
 
 // Cartographic + heading + (sx,sy,sz) -> 모델행렬
-export function modelMatrixFromCartoHeadingScale(carto, heading, sx, sy, sz) {
+export function modelMatrixFromCartoHeadingScale(carto, heading, scaleX, scaleY, scaleZ) {
   // (1) 위치 + HPR -> 로컬 -> 월드 프레임
-  const pos = Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, carto.height || 0);
-  const hpr = new Cesium.HeadingPitchRoll(heading, 0, 0);
-  const frame = Cesium.Transforms.headingPitchRollToFixedFrame(pos, hpr);
+  const position = Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, carto.height || 0);
+  const headingPitchRoll = new Cesium.HeadingPitchRoll(heading, 0, 0);
+  const frame = Cesium.Transforms.headingPitchRollToFixedFrame(position, headingPitchRoll);
 
-  // (2) 로컬 스케일 (sy, sx, sz) 순서 보정은 모델 축 정의에 따른 현장 보정.
-  const S = Cesium.Matrix4.fromScale(new Cesium.Cartesian3(sx, sy, sz));
-  // 최종 모델 행렬: frame * S (로컬에서 스케일 후 월드로 보냄)
-  return Cesium.Matrix4.multiply(frame, S, new Cesium.Matrix4());
+  // (2) 로컬 스케일 (scaleX, scaleY, scaleZ) 순서 보정은 모델 축 정의에 따른 현장 보정.
+  const modelScale = Cesium.Matrix4.fromScale(new Cesium.Cartesian3(scaleX, scaleY, scaleZ));
+  // 최종 모델 행렬: frame * modelScale (로컬에서 스케일 후 월드로 보냄)
+  return Cesium.Matrix4.multiply(frame, modelScale, new Cesium.Matrix4());
 }
