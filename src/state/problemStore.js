@@ -16,17 +16,17 @@ export class ProblemStore {
     // 문제 해결
     resolve({ viewer, bldg_id, columnId, onEmpty }) {
         const key = this._key(bldg_id, columnId);
-        const remove = this.map.get(key);
-        if (!remove || remove.status !== "open") return false;
+        const problemEnt = this.map.get(key);
+        if (!problemEnt || problemEnt.status !== "open") return false;
 
         const removedMeta = []; // 제거되는 강조
 
-        for (const ent of remove.entities || []) {
+        for (const ent of problemEnt.entities || []) {
         if (ent?.rawData) removedMeta.push(ent.rawData);
             removeEntity(viewer, ent);
         }
-        remove.entities = [];
-        remove.status = "resolved";
+        problemEnt.entities = [];
+        problemEnt.status = "resolved";
         
         if (typeof onEmpty === "function") 
             onEmpty({ removedMeta });
@@ -36,15 +36,15 @@ export class ProblemStore {
 
     // 강조 엔티티를 문제 레코드에 추가
     addEntities(bldg_id, columnId, ents=[]) {
-        const remove = this.map.get(this._key(bldg_id, columnId));
-        if (remove) remove.entities = (remove.entities || []).concat(ents);
+        const problemEnt = this.map.get(this._key(bldg_id, columnId));
+        if (problemEnt) problemEnt.entities = (problemEnt.entities || []).concat(ents);
     }
 
     // 열려있는 문제 목록/건물 집합
-    listOpen() { return [...this.map.values()].filter(remove => remove.status === "open").map(remove => remove.meta); }
+    listOpen() { return [...this.map.values()].filter(problemEnt => problemEnt.status === "open").map(problemEnt => problemEnt.meta); }
     openBuildings() {
         const setup = new Set();
-        for (const remove of this.map.values()) if (remove.status === "open" && remove.meta?.bldg_id) setup.add(String(remove.meta.bldg_id));
+        for (const problemEnt of this.map.values()) if (problemEnt.status === "open" && problemEnt.meta?.bldg_id) setup.add(String(problemEnt.meta.bldg_id));
         return setup;
     }
 }

@@ -90,14 +90,14 @@ export class ColumnManager extends BaseManager {
 
     // 공장 단위 엔티티/인덱스 정리
     removeByBuilding(bldgId) {
-        const remove = [];
+        const removeEnt = [];
         this.viewer.entities.values.forEach(ent => {
         if (ent.layerTag === LAYERS.COLUMN) {
             const entBldg = String(ent.rawData?.bldg_id ?? "");
-            if (entBldg === bldgId) remove.push(ent);
+            if (entBldg === bldgId) removeEnt.push(ent);
         }
         });
-        removeEntities(this.viewer, remove);
+        removeEntities(this.viewer, removeEnt);
 
         for (const [key, entry] of Array.from(this.index.entries())) {
             const entryBldg = String(entry?.rawData?.bldg_id ?? "");
