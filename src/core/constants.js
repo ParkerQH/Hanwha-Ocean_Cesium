@@ -24,7 +24,7 @@ export const DEFAULTS = {
 
 // 크레인 모델 경로 상수
 export const MODELS = {
-    OVERHEAD_CRANE_URI: new URL("../service/craneTest.glb", import.meta.url).href,
+    OVERHEAD_CRANE_URI: new URL("../service/Overhead_Crane01.glb", import.meta.url).href,
 };
 
 export const WFS = {

@@ -25,7 +25,8 @@ export class RailManager extends BaseManager {
     this.visible = true;
     this.index = new Map(); // "bldg::bay::line" -> Entity
     this._lines = new Map(); // "bldg::bay" -> [line1LL, line2LL] (크레인 배치용)
-    this._crane = new Map(); // "bldg::bay" -> Model
+    this._crane = new Map(); // "ble" -> Model
+    this._craneMid = new Map(); // "ble" -> 3D 모델 Middle Point
 
     this.baseH = Number(DEFAULTS.RAIL_BASE_HEIGHT ?? 11.0); // 높이
     this.thick = Number(DEFAULTS.RAIL_THICKNESS ?? 0.2);    // 두께
@@ -117,7 +118,13 @@ export class RailManager extends BaseManager {
   async getLines(bldg_id, bay) {
     const key = `${bldg_id}::${bay}`;
     if (this._lines.has(key)) return this._lines.get(key);
-    const cql = `(bldg_id='${bldg_id}' AND bay='${bay}')`;
+    let cql;
+    if (bldg_id=="073"||bldg_id=="064"){
+      cql = `(bldg_id='${bldg_id}')`;
+    }
+    else {
+      cql = `(bldg_id='${bldg_id}' AND bay='${bay}')`;
+    }
     const json = await this.lfetcher.wfsGet({ cql });
     const features = json?.features ?? [];
     const lines = [];
@@ -136,7 +143,7 @@ export class RailManager extends BaseManager {
   }
 
   // 센서 -> 라인 투영 기반 GLB 배치
-  async placeCraneOn({ bldg_id, bay, sensorCarto }) {
+  async placeCraneOn({ bldg_id, bay, bleId, sensorCarto }) {
     const key = `${bldg_id}::${bay}`;
     const lines = this._lines.get(key);
     if (!lines || lines.length < 2 || !sensorCarto) return null;
@@ -144,6 +151,14 @@ export class RailManager extends BaseManager {
     // 1) 센서점 -> 각 라인의 수직 투영점
     const point1 = closestPointOnLineLL(sensorCarto, lines[0]);
     const point2 = closestPointOnLineLL(sensorCarto, lines[1]);
+
+    // 1-1) 말풍선 배치를 위한 모델 중심 좌표
+    const mid = new Cesium.Cartographic(
+      (point1.longitude + point2.longitude) / 2,
+      (point1.latitude + point2.latitude) / 2,
+      (DEFAULTS.EXTRUDED_HEIGHT ?? 10) + 1.0
+    )
+    this._craneMid.set(bleId, mid);
 
     // 2) 오리진 = 중점(z=상수), 방향=a->b
     const origin = new Cesium.Cartographic(point1.longitude, point1.latitude, DEFAULTS.CRANE_HEIGHT);
@@ -161,14 +176,15 @@ export class RailManager extends BaseManager {
 
     const modelMatrix = modelMatrixFromCartoHeadingScale(origin, heading, scaleX, scaleY, scaleZ);
 
-    let model = this._crane.get(key);
+    const crane_key = `${bleId}`
+    let model = this._crane.get(crane_key);
     if (!model || model.isDestroyed?.()) {
       const created = Cesium.Model.fromGltfAsync
         ? await Cesium.Model.fromGltfAsync({ url: MODELS.OVERHEAD_CRANE_URI, modelMatrix, show: true })
         : Cesium.Model.fromGltf({ url: MODELS.OVERHEAD_CRANE_URI, modelMatrix, show: true });
       this.viewer.scene.primitives.add(created);
       model = created;
-      this._crane.set(key, model);
+      this._crane.set(crane_key, model);
     } else {
       model.modelMatrix = modelMatrix;
       model.show = true;
@@ -177,13 +193,18 @@ export class RailManager extends BaseManager {
     return model;
   }
 
-  removeCrane(bldg_id, bay) {
-    const key = `${bldg_id}::${bay}`;
+  getCraneMid(bleId) {
+    return this._craneMid.get(bleId) || null;
+  }
+
+  removeCrane(bleId) {
+    const key = `${bleId}`;
     const model = this._crane.get(key);
     if (model && !model.isDestroyed?.()) {
       try { this.viewer.scene.primitives.remove(model); } catch {}
     }
     this._crane.delete(key);
+    this._craneMid.delete(key);
     this.requestRender();
   }
 

@@ -4,7 +4,6 @@
  */
 import * as Cesium from "cesium";
 import { API } from "../core/constants.js";
-import { centroidOfPolygonEntity } from "../core/entityutils";
 
 export function createBalloonLayer(viewer) {
     const containerId = 'column-balloon-layer';
@@ -27,7 +26,7 @@ export function createBalloonLayer(viewer) {
         .balloon { 
             position:absolute;
             width:250px;
-            background:rgba(20,20,20,0.85);
+            background:rgba(20, 20, 20, 0.42);
             color:#fff;
             border:1px solid rgba(255,255,255,0.2);
             border-radius:10px;
@@ -83,11 +82,20 @@ export function createBalloonLayer(viewer) {
 
     // 말풍선 위치 업데이트
     function updateBalloonPosition(id) {
-        const rec = balloons.get(id); if (!rec) return;
-        const { el, entity } = rec;
-        if (!viewer.entities.contains(entity)) { el.remove(); balloons.delete(id); return; }
-
-        const world = centroidOfPolygonEntity(entity, viewer);
+        const rec = balloons.get(id); 
+        if (!rec) return;
+        const { el, midPoint } = rec;
+        let world = null;
+        if (midPoint) {
+            // Cartographic -> Cartesian3
+            if (midPoint.longitude !== undefined) {
+                world = Cesium.Cartesian3.fromRadians(
+                midPoint.longitude, midPoint.latitude, midPoint.height || 0
+                );
+            } else if (midPoint instanceof Cesium.Cartesian3) {
+                world = midPoint;
+            }
+        }
         if (!world) { el.style.display = 'none'; return; }
 
         const win = viewer.scene.cartesianToCanvasCoordinates(world, scratch);
@@ -98,8 +106,8 @@ export function createBalloonLayer(viewer) {
         el.style.top  = `${win.y}px`;
     }
 
-    function showForHighlight(entity, { highlightedAt, bldg_id, bay, bleId }) {
-        const id = entity.id ?? `ent:${Math.random().toString(36).slice(2)}`;
+    function showForHighlight(midPoint, { highlightedAt, bldg_id, bay, bleId }) {
+        const id = `${bleId}`;
         // 기존 풍선 제거
         const old = balloons.get(id); 
         if (old) { 
@@ -124,11 +132,11 @@ export function createBalloonLayer(viewer) {
             </div>
         </div>`;
         layer.appendChild(el);
-        balloons.set(id, { el, entity });
+        balloons.set(id, { el, midPoint });
 
         el.querySelector('[data-role="when"]').textContent = when || "";
         el.querySelector('[data-role="bldg"]').textContent = bldg_id ?? "";
-        el.querySelector('[data-role="bay"]').textContent  = bay ?? "";
+        el.querySelector('[data-role="bay"]').textContent  = bay ?? "BAY 없음";
         el.querySelector('[data-role="ble"]').textContent  = bleId ?? "";
         
         // 워커 정보 비동기 로드
@@ -204,8 +212,9 @@ export function createBalloonLayer(viewer) {
     }
 
     // 강조 기둥 말풍선 제거
-    function clearForEntity(entity) {
-        const id = entity?.id; if (!id) return;
+    function clearForEntity(bleId) {
+        const id = `${bleId}`; 
+        if (!id) return;
         const rec = balloons.get(id);
         if (rec) { 
             rec.el.remove();

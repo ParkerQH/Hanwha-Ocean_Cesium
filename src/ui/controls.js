@@ -10,29 +10,12 @@ export function initControls({ viewer, columnManager, highlightManager, sensorMa
     const inpSensorId = document.getElementById("inpSensorId");
     const inpSensorBay = document.getElementById("inpSensorBay");
 
-    // 강조 엔티티 조회
-    function findHighlightEntity(bldg_id, columnId) {
-        return viewer.entities.values.find(ent =>
-            ent?.layerTag === "problemHighlight" &&
-            String(ent.rawData?.bldg_id) === String(bldg_id) &&
-            String(ent.rawData?.column_id) === String(columnId)
-        ) || null;
-    }
-
     // 강조 기둥 말풍선 생성
-    function showBalloonForHighlight(bldg_id, bay, columnId, bleId) {
-        const ent = findHighlightEntity(bldg_id, columnId);
-        if (!ent) return;
+    function showBalloonForHighlight(bldg_id, bay, bleId) {
         const ts = new Date().toISOString();
+        const midPoint = railManager.getCraneMid(bleId);
         // 말풍선: 강조 시각 / 공장 / 기둥
-        balloon?.showForHighlight?.(ent, { highlightedAt: ts, bldg_id, bay, bleId });
-    }
-
-    // 강조 기둥 말풍선 제거
-    function clearBalloonForHighlight(bldg_id, columnId) {
-        const ent = findHighlightEntity(bldg_id, columnId);
-        if (!ent) return;
-        balloon.clearForEntity(ent);
+        balloon?.showForHighlight?.(midPoint, { highlightedAt: ts, bldg_id, bay, bleId });
     }
 
     // 센서 신고(= BLE 기준 단일 하이라이트 + HALO)
@@ -60,8 +43,6 @@ export function initControls({ viewer, columnManager, highlightManager, sensorMa
             sensorManager.addHalo(bleId, 1.0);
             sensorManager.blinkHalo(bleId, { durationMs: 5000, intervalMs: 400 });
 
-            showBalloonForHighlight(bldg_id, bay, pillar_id, bleId);
-
             // const pair = `${bldg_id}::${bay}`;
             await railManager.load({ bldgIds: [bldg_id] });      // 레일 폴리곤
             await railManager.getLines(bldg_id, bay);       // 라인 캐시
@@ -72,7 +53,8 @@ export function initControls({ viewer, columnManager, highlightManager, sensorMa
             const pos = halo?.position?.getValue ? halo.position.getValue(now) : halo?.position;
             if (pos) {
                 const carto = Cesium.Cartographic.fromCartesian(pos); carto.height = 0;
-                await railManager.placeCraneOn({ bldg_id, bay, sensorCarto: carto });
+                await railManager.placeCraneOn({ bldg_id, bay, bleId, sensorCarto: carto });
+                showBalloonForHighlight(bldg_id, bay, bleId);
             }
         } catch (err) {
             handleError(err, { where: "controls.sensorReport" });
@@ -87,8 +69,6 @@ export function initControls({ viewer, columnManager, highlightManager, sensorMa
             if (!inpValue) 
                 return;
             const bleId = inpValue;
-            
-            const bay = normalizeBay?.(inpSensorBay?.value || "") || "";
 
             const found = await sensorManager.lookupByBle(bleId);
             if (!found) 
@@ -99,9 +79,8 @@ export function initControls({ viewer, columnManager, highlightManager, sensorMa
             sensorManager.removeHalo(bleId);
             sensorManager.showForCurrentColumns();
 
-            if (bay) railManager.removeCrane(bldg_id, bay);
-
-            clearBalloonForHighlight(bldg_id, pillar_id);
+            railManager.removeCrane(bleId);
+            balloon.clearForEntity(bleId);
 
             // 해당 공장에 열린 문제가 더 없으면 레일까지 제거
             const opens = highlightManager.getOpenBuildings();
@@ -123,7 +102,6 @@ export function initControls({ viewer, columnManager, highlightManager, sensorMa
 
             // 말풍선 내부 텍스트에서 bldg_id, ble_id, columnId 추출
             const bleId = balloonEl.querySelector('[data-role="ble"]')?.textContent?.trim();
-            const bay = balloonEl.querySelector('[data-role="bay"]')?.textContent?.trim() || "";
 
             if (!bleId) return console.warn("[BalloonResolve] missing ids");
 
@@ -137,8 +115,8 @@ export function initControls({ viewer, columnManager, highlightManager, sensorMa
             sensorManager.removeHalo(bleId);
             sensorManager.showForCurrentColumns();
 
-            if (bay) railManager.removeCrane(bldg_id, bay);
-            clearBalloonForHighlight(bldg_id, pillar_id);
+            railManager.removeCrane(bleId);
+            balloon.clearForEntity(bleId);
 
             const opens = highlightManager.getOpenBuildings();
             if (!opens.has(bldg_id)) railManager.removeByBuilding(bldg_id);

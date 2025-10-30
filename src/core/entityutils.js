@@ -16,28 +16,6 @@ export function cartToLonLat(cart) {
     return { lon: Cesium.Math.toDegrees(cartLL.longitude), lat: Cesium.Math.toDegrees(cartLL.latitude) };
 }
 
-// 폴리곤 엔티티의 화면 말풍선 표시용 중심점
-export function centroidOfPolygonEntity(entity, viewer) {
-    const now = viewer.clock.currentTime;
-    let polygonHierarchy = entity?.polygon?.hierarchy;
-    if (!polygonHierarchy) return null;
-    if (typeof polygonHierarchy.getValue === "function") polygonHierarchy = polygonHierarchy.getValue(now);
-    const positions = polygonHierarchy?.positions || polygonHierarchy || [];
-    if (!positions.length) return null;
-
-    // 단순 평균 중심
-    let lon = 0, lat = 0;
-    positions.forEach(p => { const v = cartToLonLat(p); lon += v.lon; lat += v.lat; });
-    lon /= positions.length; lat /= positions.length;
-
-    // 높이(Extruded Height) + 0.5m
-    let extrudedHeight = entity?.polygon?.extrudedHeight, height = 0;
-    if (typeof extrudedHeight?.getValue === "function") height = Number(extrudedHeight.getValue(now)) || 0;
-    else if (typeof extrudedHeight === "number") height = extrudedHeight;
-
-    return Cesium.Cartesian3.fromDegrees(lon, lat, height + 3);
-}
-
 // 외곽 방향 판정
 export function signedAreaLL(positions) {
     let a = 0;
