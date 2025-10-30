@@ -136,7 +136,7 @@ export function createBalloonLayer(viewer) {
 
         el.querySelector('[data-role="when"]').textContent = when || "";
         el.querySelector('[data-role="bldg"]').textContent = bldg_id ?? "";
-        el.querySelector('[data-role="bay"]').textContent  = bay ?? "BAY 없음";
+        el.querySelector('[data-role="bay"]').textContent  = bay ?? "";
         el.querySelector('[data-role="ble"]').textContent  = bleId ?? "";
         
         // 워커 정보 비동기 로드

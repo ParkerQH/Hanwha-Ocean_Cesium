@@ -9,7 +9,7 @@ import { BaseManager } from "../core/BaseManager.js";
 import { removeEntities, closestPointOnLineLL, headingBetweenCarto, modelMatrixFromCartoHeadingScale, planarDistanceMeters } from "../core/entityutils.js";
 import { LAYERS, DEFAULTS, WFS_TYPES, MODELS } from "../core/constants.js";
 import { DataFetcher } from "../service/DataFetcher.js";
-
+import { handleError } from "../core/error.js";
 
 export class RailManager extends BaseManager {
   constructor(deps, opts = {}) {
@@ -119,11 +119,11 @@ export class RailManager extends BaseManager {
     const key = `${bldg_id}::${bay}`;
     if (this._lines.has(key)) return this._lines.get(key);
     let cql;
-    if (bldg_id=="073"||bldg_id=="064"){
-      cql = `(bldg_id='${bldg_id}')`;
+    if (bay !== ""){
+      cql = `(bldg_id='${bldg_id}' AND bay='${bay}')`;
     }
     else {
-      cql = `(bldg_id='${bldg_id}' AND bay='${bay}')`;
+      cql = `(bldg_id='${bldg_id}')`;
     }
     const json = await this.lfetcher.wfsGet({ cql });
     const features = json?.features ?? [];
@@ -134,10 +134,23 @@ export class RailManager extends BaseManager {
       else if (geom?.type === "MultiLineString") lines.push(geom.coordinates[0] || []);
     }
     const valid = lines.filter(a => a?.length >= 2);
-    if (valid.length >= 2) {
+    if (valid.length === 2) {
       const pair = [valid[0], valid[1]];
       this._lines.set(key, pair);
       return pair;
+    } else {
+      const where = "RailManager.getLines";
+
+      if (valid.length > 2) {
+        // 레일이 과다
+        handleError( new Error(`too many rail lines for ${key}, count:${valid.length}`), { where, userMessage: "너무 많은 레일이 매핑되었습니다. 센서 위치만 표시 됩니다." });
+      } else if (valid.length === 0) {
+        // 레일 없음
+        handleError( new Error(`no rail lines for ${key}`), { where, userMessage: "레일이 존재하지 않습니다. 센서 위치만 표시 됩니다." });
+      } else {
+        // 레일 1개뿐이라 쌍 형성 불가
+        handleError( new Error(`only one rail line for ${key}`), { where, userMessage: "레일이 하나만 존재합니다. 센서 위치만 표시 됩니다." });
+      }
     }
     return [];
   }
