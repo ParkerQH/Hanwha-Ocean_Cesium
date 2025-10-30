@@ -14,6 +14,11 @@ export function createBalloonLayer(viewer) {
     // 스타일 1회 주입
     if (!document.getElementById(styleId)) {
         const css = `
+        :root {
+        --balloon-bg: rgba(221, 237, 255, 1);  /* 말풍선 배경색 */
+        --balloon-border: rgba(255, 255, 255, 0.22); /* 말풍선 테두리색 */
+        }
+
         #${containerId} {
             position:absolute;
             left:0;
@@ -23,12 +28,12 @@ export function createBalloonLayer(viewer) {
             height:100%;
             overflow:visible;
         }
-        .balloon { 
+        .balloon {
             position:absolute;
             width:250px;
-            background:rgba(20, 20, 20, 0.42);
-            color:#fff;
-            border:1px solid rgba(255,255,255,0.2);
+            background:var(--balloon-bg);
+            color:rgba(0, 0, 0, 0.94);
+            border:1px solid var(--balloon-border);
             border-radius:10px;
             padding:8px 10px;
             box-shadow:0 6px 18px rgba(0,0,0,0.25);
@@ -36,6 +41,20 @@ export function createBalloonLayer(viewer) {
             font:12px/1.4 ui-sans-serif,system-ui;
             pointer-events:auto;
         }
+
+        .balloon::after {
+            content:"";
+            position:absolute;
+            bottom:-11px;
+            left:50%;
+            transform:translateX(-50%);
+            width:0; 
+            height:0;
+            border-left:9px solid transparent;
+            border-right:9px solid transparent;
+            border-top:11px solid var(--balloon-bg);
+        }
+
         .balloon h4 {
             margin:0 0 6px;
             font-size:13px;
