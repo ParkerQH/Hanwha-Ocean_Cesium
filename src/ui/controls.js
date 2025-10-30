@@ -20,12 +20,12 @@ export function initControls({ viewer, columnManager, highlightManager, sensorMa
     }
 
     // 강조 기둥 말풍선 생성
-    function showBalloonForHighlight(bldg_id, columnId) {
+    function showBalloonForHighlight(bldg_id, bay, columnId, bleId) {
         const ent = findHighlightEntity(bldg_id, columnId);
         if (!ent) return;
         const ts = new Date().toISOString();
         // 말풍선: 강조 시각 / 공장 / 기둥
-        balloon?.showForHighlight?.(ent, { highlightedAt: ts, bldg_id, columnId });
+        balloon?.showForHighlight?.(ent, { highlightedAt: ts, bldg_id, bay, bleId });
     }
 
     // 강조 기둥 말풍선 제거
@@ -60,7 +60,7 @@ export function initControls({ viewer, columnManager, highlightManager, sensorMa
             sensorManager.addHalo(bleId, 1.0);
             sensorManager.blinkHalo(bleId, { durationMs: 5000, intervalMs: 400 });
 
-            showBalloonForHighlight(bldg_id, pillar_id);
+            showBalloonForHighlight(bldg_id, bay, pillar_id, bleId);
 
             // const pair = `${bldg_id}::${bay}`;
             await railManager.load({ bldgIds: [bldg_id] });      // 레일 폴리곤
@@ -105,11 +105,48 @@ export function initControls({ viewer, columnManager, highlightManager, sensorMa
 
             // 해당 공장에 열린 문제가 더 없으면 레일까지 제거
             const opens = highlightManager.getOpenBuildings();
-            if (!opens.has(String(bldg_id))) railManager.removeByBuilding(bldg_id);
+            if (!opens.has(bldg_id)) railManager.removeByBuilding(bldg_id);
         } catch (err) {
             handleError(err, { where: "controls.sensorResolve" });
         }
     });
+
+    // 말풍선을 통한 강조 해제
+    document.addEventListener("click", async (e) => {
+        const btn = e.target.closest('[data-role="btnBalloonResolve"]');
+        if (!btn) return;
+
+        try {
+            // 버튼이 속한 말풍선의 데이터 추출
+            const balloonEl = btn.closest(".balloon");
+            if (!balloonEl) return;
+
+            // 말풍선 내부 텍스트에서 bldg_id, ble_id, columnId 추출
+            const bleId = balloonEl.querySelector('[data-role="ble"]')?.textContent?.trim();
+            const bay = balloonEl.querySelector('[data-role="bay"]')?.textContent?.trim() || "";
+
+            if (!bleId) return console.warn("[BalloonResolve] missing ids");
+
+            // BLE -> pillar_id 조회 (같은 로직 재사용)
+            const found = await sensorManager.lookupByBle(bleId);
+            if (!found) 
+                return handleError(new Error("not found"), { userMessage: "센서와 기둥/공장 매핑을 찾지 못했습니다." });
+            const { pillar_id, bldg_id } = found;
+
+            highlightManager.resolve({ bldg_id, columnId: pillar_id });
+            sensorManager.removeHalo(bleId);
+            sensorManager.showForCurrentColumns();
+
+            if (bay) railManager.removeCrane(bldg_id, bay);
+            clearBalloonForHighlight(bldg_id, pillar_id);
+
+            const opens = highlightManager.getOpenBuildings();
+            if (!opens.has(bldg_id)) railManager.removeByBuilding(bldg_id);
+        } catch (err) {
+            handleError(err, { where: "controls.balloonResolve" });
+        }
+    });
+
 
     // 클릭: 정보 출력
     const infoBody = document.getElementById("infoBody");

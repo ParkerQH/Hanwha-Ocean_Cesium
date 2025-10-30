@@ -24,7 +24,7 @@ export const DEFAULTS = {
 
 // 크레인 모델 경로 상수
 export const MODELS = {
-  OVERHEAD_CRANE_URI: new URL("../service/craneTest.glb", import.meta.url).href,
+    OVERHEAD_CRANE_URI: new URL("../service/craneTest.glb", import.meta.url).href,
 };
 
 export const WFS = {
@@ -34,11 +34,13 @@ export const WFS = {
 };
 
 export const WFS_TYPES = {
-  COLUMNS: "HanWha_map:polygon_data",
-  RAIL_LINE: "HanWha_map:rail_line",
+    COLUMNS: "HanWha_map:polygon_data",
+    RAIL_LINE: "HanWha_map:rail_line",
 };
 
 export const API = {
     SENSORS_BY_PILLARS: (csv) => `/api/ble/by_pillars?pillar_ids=${encodeURIComponent(csv)}`,
     SENSOR_DETAIL: (id) => `/api/ble/detail?ble_id=${encodeURIComponent(id)}`,
+    WORKER_INFO: (bldg) => `/api/worker/${bldg}`,
+    CHECK_LOG_CREATE: `/api/check_log`,
 };
