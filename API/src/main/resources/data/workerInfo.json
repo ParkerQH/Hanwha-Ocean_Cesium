@@ -1,0 +1,82 @@
+[
+    {
+        "bldg_id": "150",
+        "name": "조립1공장",
+        "driver": "김민수",
+        "driverId": "12345",
+        "driverPhone": "010-1234-5678",
+        "manager": "김남기",
+        "managerId": "568795",
+        "managerPhone": "010-2234-5678"
+    },
+    {
+        "bldg_id": "141",
+        "name": "조립2공장",
+        "driver": "이준호",
+        "driverId": "23456",
+        "driverPhone": "010-2345-6789",
+        "manager": "박서연",
+        "managerId": "678901",
+        "managerPhone": "010-3234-6789"
+    },
+    {
+        "bldg_id": "128",
+        "name": "조립3공장",
+        "driver": "최지훈",
+        "driverId": "34567",
+        "driverPhone": "010-3456-7890",
+        "manager": "정수빈",
+        "managerId": "789012",
+        "managerPhone": "010-4234-7890"
+    },
+    {
+        "bldg_id": "102",
+        "name": "조립5공장",
+        "driver": "강하늘",
+        "driverId": "45678",
+        "driverPhone": "010-4567-8901",
+        "manager": "이현우",
+        "managerId": "890123",
+        "managerPhone": "010-5234-8901"
+    },
+    {
+        "bldg_id": "086",
+        "name": "해양제작1공장",
+        "driver": "윤서진",
+        "driverId": "56789",
+        "driverPhone": "010-5678-9012",
+        "manager": "박재현",
+        "managerId": "901234",
+        "managerPhone": "010-6234-9012"
+    },
+    {
+        "bldg_id": "073",
+        "name": "해양제작1공장",
+        "driver": "정우성",
+        "driverId": "67890",
+        "driverPhone": "010-6789-0123",
+        "manager": "오은지",
+        "managerId": "012345",
+        "managerPhone": "010-7234-0123"
+    },
+    {
+        "bldg_id": "064",
+        "name": "해양제작1공장",
+        "driver": "김다은",
+        "driverId": "78901",
+        "driverPhone": "010-7890-1234",
+        "manager": "조성민",
+        "managerId": "123456",
+        "managerPhone": "010-8234-1234"
+    },
+    {
+        "bldg_id": "126",
+        "name": "절단공장",
+        "driver": "홍지훈",
+        "driverId": "89012",
+        "driverPhone": "010-8901-2345",
+        "manager": "윤하람",
+        "managerId": "234567",
+        "managerPhone": "010-9234-2345"
+    }
+]
